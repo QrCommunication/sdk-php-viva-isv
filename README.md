@@ -350,24 +350,16 @@ src/
 
 La spécification OpenAPI complète est disponible dans [`openapi.yaml`](openapi.yaml).
 
-### Consulter la documentation interactive
+### Documentation interactive ReDoc
 
-Ouvrez [`docs/index.html`](docs/index.html) dans un navigateur pour accéder à la documentation **ReDoc** interactive avec :
+**[Consulter la documentation interactive](https://qrcommunication.github.io/sdk-php-viva-isv/)**
+
+La documentation ReDoc inclut :
 
 - Tous les endpoints documentés avec exemples
 - Schémas de requête/réponse détaillés
 - Les 3 mécanismes d'authentification expliqués
 - Codes d'erreur et événements webhook
-
-Vous pouvez aussi utiliser n'importe quel outil compatible OpenAPI :
-
-```bash
-# Swagger UI via Docker
-docker run -p 8080:8080 -e SWAGGER_JSON=/spec/openapi.yaml -v $(pwd):/spec swaggerapi/swagger-ui
-
-# Redocly CLI
-npx @redocly/cli preview-docs openapi.yaml
-```
 
 ---
 
