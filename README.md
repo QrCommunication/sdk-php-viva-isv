@@ -1,15 +1,13 @@
-# Viva Wallet ISV SDK for PHP
+# SDK PHP Viva Wallet ISV
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D%208.2-8892BF.svg)](https://php.net)
+[![Version 1.3.5](https://img.shields.io/badge/version-1.3.5-blue.svg)](https://github.com/qrcommunication/sdk-php-viva-isv/releases)
+[![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777BB4.svg)](https://php.net)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Packagist](https://img.shields.io/badge/Packagist-qrcommunication%2Fviva--isv--sdk-orange.svg)](https://packagist.org/packages/qrcommunication/viva-isv-sdk)
-[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539.svg)](docs/openapi.yaml)
-[![ReDoc](https://img.shields.io/badge/Docs-ReDoc-0052FF.svg)](https://qrcommunication.github.io/sdk-php-viva-isv/)
-[![Version](https://img.shields.io/badge/version-1.3.5-green.svg)](https://github.com/qrcommunication/sdk-php-viva-isv/releases/tag/v1.3.5)
 
-SDK PHP pour l'API **Viva Wallet ISV Partner** — comptes connectes, comptes ISV, ordres ISV avec commission, transactions via Composite Auth, Cloud Terminal POS, transferts marketplace, Native Checkout ISV, webhooks ISV et parsing (21 evenements).
+SDK PHP complet pour l'API Viva Wallet ISV Partner. 10 ressources couvrant : comptes connectes, comptes ISV, ordres ISV avec commission, transactions (capture, recurrent, annulation), terminaux Cloud POS, transferts marketplace, ordres marketplace, Native Checkout ISV, webhooks ISV (CRUD) et parsing (21 evenements).
 
-> **Ce SDK couvre les operations ISV** (marketplace, comptes connectes, split payments). Pour les operations marchands standard, voir `sdk-php-viva-merchant`.
+> **Ce SDK couvre les operations ISV (comptes connectes, composite auth, commission).** Pour les operations marchands standard, voir [`sdk-php-viva-merchant`](https://github.com/qrcommunication/sdk-php-viva-merchant).
 
 ---
 
@@ -17,28 +15,26 @@ SDK PHP pour l'API **Viva Wallet ISV Partner** — comptes connectes, comptes IS
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Les 3 authentifications](#les-3-authentifications)
-- [Les 3 hosts API](#les-3-hosts-api)
-- [API Reference](#api-reference)
-  - [ConnectedAccounts](#1-connectedaccounts)
-  - [IsvAccounts](#2-isvaccounts)
-  - [IsvOrders](#3-isvorders)
-  - [IsvTransactions](#4-isvtransactions)
-  - [EcrTerminals](#5-ecrterminals)
-  - [Transfers](#6-transfers)
-  - [MarketplaceOrders](#7-marketplaceorders)
-  - [NativeCheckoutIsv](#8-nativecheckoutisv)
-  - [IsvWebhooks](#9-isvwebhooks)
-  - [Webhooks](#10-webhooks)
-- [Enums](#enums)
-  - [EcrEventId](#ecreventid)
-  - [TransactionEventId](#transactioneventid)
-- [Gestion des erreurs](#gestion-des-erreurs)
+- [Reference des ressources](#reference-des-ressources)
+  - [1. ConnectedAccounts — comptes connectes](#1-connectedaccounts--comptes-connectes)
+  - [2. IsvAccounts — comptes ISV](#2-isvaccounts--comptes-isv)
+  - [3. IsvOrders — ordres Smart Checkout ISV](#3-isvorders--ordres-smart-checkout-isv)
+  - [4. IsvTransactions — transactions marchands connectes](#4-isvtransactions--transactions-marchands-connectes)
+  - [5. EcrTerminals — terminaux POS Cloud](#5-ecrterminals--terminaux-pos-cloud)
+  - [6. Transfers — transferts marketplace](#6-transfers--transferts-marketplace)
+  - [7. MarketplaceOrders — ordres marketplace](#7-marketplaceorders--ordres-marketplace)
+  - [8. NativeCheckoutIsv — paiement natif ISV](#8-nativecheckoutisv--paiement-natif-isv)
+  - [9. IsvWebhooks — CRUD webhooks ISV](#9-isvwebhooks--crud-webhooks-isv)
+  - [10. Webhooks — verification et parsing](#10-webhooks--verification-et-parsing)
 - [Architecture](#architecture)
+- [Authentification](#authentification)
+- [Enums](#enums)
+- [Gestion des erreurs](#gestion-des-erreurs)
+- [Webhooks (21 evenements)](#webhooks-21-evenements)
+- [Pieges evites par le SDK](#pieges-evites-par-le-sdk)
+- [Test en sandbox](#test-en-sandbox)
 - [Documentation API interactive](#documentation-api-interactive)
-- [Integration AI](#integration-ai)
-- [Pieges connus (certification ISV)](#pieges-connus-certification-isv)
-- [Tests](#tests)
+- [Integration AI](#integration-ai-claude-cursor-copilot-codex)
 - [Licence](#licence)
 
 ---
@@ -49,7 +45,7 @@ SDK PHP pour l'API **Viva Wallet ISV Partner** — comptes connectes, comptes IS
 composer require qrcommunication/viva-isv-sdk
 ```
 
-**Prerequis :** PHP 8.2+, extension `json`, extension `curl` (via Guzzle 7.8+).
+**Prerequis** : PHP 8.2+ avec `ext-json` et `ext-curl`.
 
 ---
 
@@ -58,955 +54,830 @@ composer require qrcommunication/viva-isv-sdk
 ```php
 use QrCommunication\VivaIsv\VivaIsvClient;
 
+// 1. Instancier le client avec les 6 credentials
 $isv = new VivaIsvClient(
-    clientId:       'isv-client-id.apps.vivapayments.com',  // ISV OAuth
-    clientSecret:   'isv-client-secret',
-    merchantId:     'isv-merchant-uuid',                     // ISV Basic Auth
-    apiKey:         'isv-api-key',
-    resellerId:     'reseller-uuid',                         // Composite Auth
-    resellerApiKey: 'reseller-api-key',
-    environment:    'demo',                                  // 'demo' ou 'production'
+    clientId:       'isv-client-id.apps.vivapayments.com',  // ISV OAuth2
+    clientSecret:   'isv-client-secret',                    // ISV OAuth2
+    merchantId:     'isv-merchant-uuid',                    // ISV Basic Auth
+    apiKey:         'isv-api-key',                          // ISV Basic Auth
+    resellerId:     'reseller-uuid',                        // Composite Auth
+    resellerApiKey: 'reseller-api-key',                     // Composite Auth
+    environment:    'demo',                                 // 'demo' ou 'production'
 );
 
-// Verifier la connexion
+// 2. Creer un compte marchand connecte
+$account = $isv->accounts->create(
+    email: 'merchant@example.com',
+    returnUrl: 'https://myapp.com/onboarding/complete',
+);
+// => ['accountId' => 'uuid', 'invitation' => ['redirectUrl' => 'https://...']]
+
+// 3. Creer un ordre avec commission ISV
+$order = $isv->orders->create(
+    connectedMerchantId: $account['accountId'],
+    amount: 1500,       // 15,00 EUR
+    isvAmount: 100,     // 1,00 EUR de commission
+);
+// => ['order_code' => 1234567890, 'checkout_url' => 'https://...']
+
+// 4. Rediriger le client vers le checkout
+header('Location: ' . $order['checkout_url']);
+
+// 5. Capturer une pre-autorisation
+$isv->transactions->capture('preauth-txn-uuid', 'merchant-uuid', amount: 1500);
+
+// 6. Vente sur terminal POS
+$session = $isv->terminals->sale(
+    terminalId: 16014231,
+    amount: 1500,
+    isvAmount: 100,
+    terminalMerchantId: 'merchant-uuid',
+);
+$result = $isv->terminals->pollUntilComplete($session['session_id']);
+
+// 7. Rembourser
+$isv->transactions->cancel('txn-uuid', 'merchant-uuid', amount: 500);
+```
+
+### Ou trouver les credentials
+
+| Credential     | Emplacement dans le Dashboard Viva                              |
+|----------------|------------------------------------------------------------------|
+| Client ID      | Settings > API Access > ISV OAuth Credentials > Client ID       |
+| Client Secret  | Settings > API Access > ISV OAuth Credentials > Client Secret   |
+| Merchant ID    | Settings > API Access > Merchant ID                             |
+| API Key        | Settings > API Access > API Key                                 |
+| Reseller ID    | Settings > API Access > Reseller Credentials > Reseller ID      |
+| Reseller API Key | Settings > API Access > Reseller Credentials > Reseller API Key |
+
+### Test de connexion
+
+```php
 if ($isv->testConnection()) {
     echo 'Connexion ISV OK';
 }
 ```
 
-Les 6 credentials sont **tous necessaires** pour couvrir les 3 mecanismes d'authentification ISV.
-
 ---
 
-## Les 3 authentifications
+## Reference des ressources
 
-Le SDK gere **3 mecanismes d'authentification** distincts, chacun cible un ensemble d'endpoints different :
+### 1. ConnectedAccounts — comptes connectes
 
-| Type | Credentials | Format HTTP | Utilise pour |
-|------|-------------|-------------|-------------|
-| **ISV OAuth2** | `clientId` + `clientSecret` | `Authorization: Bearer {token}` | Comptes, ordres ISV, terminaux, transferts, marketplace, native checkout, webhooks ISV |
-| **ISV Basic Auth** | `merchantId` + `apiKey` | `Authorization: Basic {merchantId:apiKey}` | Propre compte ISV sur Legacy API |
-| **Composite Basic Auth** | `resellerId` + `resellerApiKey` | `Authorization: Basic {compositeUsername:resellerApiKey}` | Transactions des marchands connectes |
+**Propriete** : `$isv->accounts`
 
-### Composite Basic Auth (NON DOCUMENTE par Viva Wallet)
+Gestion des comptes marchands connectes a la plateforme ISV. Creation, consultation, KYB onboarding, verification, mise a jour et suppression.
 
-Ce mecanisme a ete **decouvert empiriquement** lors de la certification ISV. Viva Wallet ne le documente nulle part.
-
-```
-Username: {ResellerID}:{ConnectedMerchantID}   (deux UUIDs separes par :)
-Password: {ResellerAPIKey}
-```
-
-Exemple concret :
-```
-ResellerID:          a1b2c3d4-0000-0000-0000-000000000000
-ConnectedMerchantID: e5f6g7h8-0000-0000-0000-000000000000
-ResellerAPIKey:      R3s3ll3rK3y...
-
-=> Username: a1b2c3d4-0000-0000-0000-000000000000:e5f6g7h8-0000-0000-0000-000000000000
-=> Password: R3s3ll3rK3y...
-```
-
-Le SDK gere automatiquement la construction du username via `IsvConfig::compositeUsername()`.
-
----
-
-## Les 3 hosts API
-
-Viva Wallet utilise **3 hosts differents** selon le type d'operation. Chaque host a sa propre convention de nommage des parametres :
-
-| Host | Auth | Convention params | Endpoints |
-|------|------|-------------------|-----------|
-| `accounts.vivapayments.com` | Form POST (`clientId:clientSecret`) | -- | `/connect/token` uniquement |
-| `api.vivapayments.com` | Bearer token | **camelCase** | `/checkout/v2/isv/`, `/checkout/v2/orders/`, `/ecr/isv/v1/`, `/platforms/v1/`, `/isv/v1/`, `/nativecheckout/v2/isv/` |
-| `www.vivapayments.com` | Basic Auth / Composite | **PascalCase** | `/api/orders`, `/api/transactions` |
-
-> **CRITIQUE** : ne jamais melanger les casses. Legacy = PascalCase (`Amount`, `IsvAmount`), New API = camelCase (`amount`, `isvAmount`).
-
-### Environnements
-
-| Environnement | Accounts URL | API URL | Legacy URL |
-|---------------|-------------|---------|------------|
-| `demo` | `demo-accounts.vivapayments.com` | `demo-api.vivapayments.com` | `demo.vivapayments.com` |
-| `production` | `accounts.vivapayments.com` | `api.vivapayments.com` | `www.vivapayments.com` |
-
----
-
-## API Reference
-
-### 1. ConnectedAccounts
-
-Gestion des comptes marchands connectes sous la plateforme ISV.
-
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->accounts`
-
-#### Creer un compte connecte
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `create` | `create(string $email, string $returnUrl, ?string $partnerName, ?string $logoUrl)` | `array{accountId, invitation}` |
+| `get` | `get(string $accountId)` | `array` (details du compte) |
+| `list` | `list()` | `array` (liste paginee) |
+| `isVerified` | `isVerified(string $accountId)` | `bool` |
+| `onboardingUrl` | `onboardingUrl(string $accountId)` | `?string` |
+| `update` | `update(string $accountId, array $attributes)` | `array` |
+| `delete` | `delete(string $accountId)` | `array` |
 
 ```php
+// Creer un compte connecte avec branding
 $account = $isv->accounts->create(
     email: 'merchant@example.com',
-    returnUrl: 'https://app.com/onboarding/complete',
-    partnerName: 'Ma Plateforme',    // optionnel
-    logoUrl: 'https://app.com/logo.png', // optionnel
+    returnUrl: 'https://myapp.com/onboarding/complete',
+    partnerName: 'Ma Plateforme',
+    logoUrl: 'https://myapp.com/logo.png',
 );
 
-echo $account['accountId'];                    // UUID du compte
-echo $account['invitation']['redirectUrl'];    // URL KYB onboarding
-```
+// Rediriger le marchand vers l'onboarding KYB
+header('Location: ' . $account['invitation']['redirectUrl']);
 
-`POST /platforms/v1/accounts`
+// Verifier le statut KYB
+if ($isv->accounts->isVerified($account['accountId'])) {
+    echo 'Le marchand peut recevoir des paiements';
+}
 
-#### Obtenir les details d'un compte
+// Recuperer l'URL d'onboarding (null si deja verifie)
+$url = $isv->accounts->onboardingUrl($account['accountId']);
 
-```php
-$info = $isv->accounts->get($accountId);
-echo $info['verificationStatus']; // Pending, Verified, Active, Rejected
-echo $info['merchantId'];         // UUID marchand (apres verification)
-```
-
-`GET /platforms/v1/accounts/{accountId}`
-
-#### Lister tous les comptes connectes
-
-```php
+// Lister tous les comptes connectes
 $accounts = $isv->accounts->list();
+
+// Mettre a jour
+$isv->accounts->update($account['accountId'], ['email' => 'new@example.com']);
+
+// Supprimer
+$isv->accounts->delete($account['accountId']);
 ```
-
-`GET /platforms/v1/accounts`
-
-#### Raccourcis utiles
-
-```php
-// Verification rapide
-$isv->accounts->isVerified($accountId); // true si Verified ou Active
-
-// URL d'onboarding (null si deja verifie)
-$url = $isv->accounts->onboardingUrl($accountId);
-```
-
-#### Mettre a jour un compte
-
-```php
-$isv->accounts->update($accountId, [
-    'email' => 'new-email@example.com',
-    'branding' => ['partnerName' => 'Updated Name'],
-]);
-```
-
-`POST /platforms/v1/accounts/{accountId}`
-
-#### Supprimer/deconnecter un compte
-
-```php
-$isv->accounts->delete($accountId);
-```
-
-`DELETE /platforms/v1/accounts/{accountId}`
 
 ---
 
-### 2. IsvAccounts
+### 2. IsvAccounts — comptes ISV
 
-Gestion ISV-specifique des comptes via le namespace `/isv/v1/`. Offre des options de branding supplementaires (couleur primaire).
+**Propriete** : `$isv->isvAccounts`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->isvAccounts`
+Comptes ISV via le namespace `/isv/v1/` avec options de branding personnalise (couleur, logo).
 
-#### Creer un compte ISV connecte
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `create` | `create(string $email, string $returnUrl, ?string $partnerName, ?string $primaryColor, ?string $logoUrl)` | `array{accountId, invitation}` |
+| `get` | `get(string $accountId)` | `array` |
+| `list` | `list()` | `array` |
 
 ```php
 $account = $isv->isvAccounts->create(
     email: 'merchant@example.com',
-    returnUrl: 'https://app.com/onboarding/complete',
-    partnerName: 'Ma Plateforme',       // optionnel
-    primaryColor: '#0052FF',            // optionnel — couleur branding
-    logoUrl: 'https://app.com/logo.png', // optionnel
+    returnUrl: 'https://myapp.com/onboarding/done',
+    partnerName: 'Ma Plateforme',
+    primaryColor: '#0052FF',
+    logoUrl: 'https://myapp.com/logo.png',
 );
 
-echo $account['accountId'];
-echo $account['invitation']['redirectUrl'];
+$details = $isv->isvAccounts->get($account['accountId']);
+$all = $isv->isvAccounts->list();
 ```
-
-`POST /isv/v1/accounts`
-
-#### Obtenir un compte ISV
-
-```php
-$info = $isv->isvAccounts->get($accountId);
-```
-
-`GET /isv/v1/accounts/{accountId}`
-
-#### Lister tous les comptes ISV
-
-```php
-$accounts = $isv->isvAccounts->list();
-```
-
-`GET /isv/v1/accounts`
 
 ---
 
-### 3. IsvOrders
+### 3. IsvOrders — ordres Smart Checkout ISV
 
-Ordres Smart Checkout avec commission ISV pour les marchands connectes.
+**Propriete** : `$isv->orders`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->orders`
+Creation d'ordres de paiement Smart Checkout pour les marchands connectes avec commission ISV.
 
-#### Creer un ordre ISV
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `create` | `create(string $connectedMerchantId, int $amount, int $isvAmount, ?string $customerDescription, ?string $merchantReference, bool $allowRecurring, bool $preauth)` | `array{order_code, checkout_url}` |
+| `checkoutUrl` | `checkoutUrl(int $orderCode)` | `string` |
 
 ```php
 $order = $isv->orders->create(
     connectedMerchantId: 'merchant-uuid',
-    amount: 1500,                        // 15,00 EUR (centimes)
-    isvAmount: 100,                      // 1,00 EUR commission ISV
-    customerDescription: 'Consultation', // visible par le client
-    merchantReference: 'session_123',    // reference interne
-    allowRecurring: true,                // tokeniser la carte
+    amount: 1500,                    // 15,00 EUR
+    isvAmount: 100,                  // 1,00 EUR de commission
+    customerDescription: 'Consultation bien-etre',
+    merchantReference: 'INV-2026-001',
+    allowRecurring: true,            // Tokeniser la carte
     preauth: false,
 );
 
-echo $order['order_code'];   // Code de l'ordre
-echo $order['checkout_url']; // URL Smart Checkout complete
-// => https://demo.vivapayments.com/web/checkout?ref=1234567890
+echo $order['order_code'];     // 1234567890
+echo $order['checkout_url'];   // https://demo.vivapayments.com/web/checkout?ref=1234567890
+
+// Reconstruire l'URL a partir d'un code
+$url = $isv->orders->checkoutUrl(1234567890);
 ```
 
-`POST /checkout/v2/isv/orders?MerchantId={uuid}`
-
-#### Obtenir l'URL de checkout
-
-```php
-$url = $isv->orders->checkoutUrl($orderCode);
-```
-
-> **Validation SDK :** `isvAmount` ne peut pas depasser `amount`. Le SDK lance `InvalidArgumentException` avant l'appel API.
-
-> **Important :** NE PAS envoyer `sourceCode` — le connected merchant utilise sa source par defaut.
+**Regles** :
+- `isvAmount` doit etre <= `amount` (sinon `InvalidArgumentException`)
+- Le marchand connecte utilise sa source de paiement par defaut (pas de `sourceCode`)
 
 ---
 
-### 4. IsvTransactions
+### 4. IsvTransactions — transactions marchands connectes
 
-Operations sur les transactions des marchands connectes : capture, recurring, cancel.
+**Propriete** : `$isv->transactions`
 
-**Auth :** Composite Basic Auth (Legacy API) | **SDK :** `$isv->transactions`
+Operations sur les transactions des marchands connectes. Le SDK utilise automatiquement le Composite Basic Auth.
 
-> **Prerequis :** "Allow recurring payments and pre-auth captures via API" doit etre active dans ISV account Settings > API Access.
-
-#### Details d'une transaction
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `get` | `get(string $transactionId, string $connectedMerchantId)` | `array` |
+| `listByDate` | `listByDate(string $connectedMerchantId, string $date)` | `array` |
+| `capture` | `capture(string $transactionId, string $connectedMerchantId, int $amount, ?int $isvAmount)` | `array` |
+| `recurring` | `recurring(string $initialTransactionId, string $connectedMerchantId, int $amount, ?int $isvAmount, ?string $sourceCode)` | `array` |
+| `cancel` | `cancel(string $transactionId, string $connectedMerchantId, ?int $amount, ?string $sourceCode)` | `array` |
 
 ```php
+// Consulter une transaction
 $txn = $isv->transactions->get('txn-uuid', 'merchant-uuid');
-```
 
-`GET /api/transactions/{transactionId}` (Composite Auth)
+// Lister les transactions d'une journee
+$transactions = $isv->transactions->listByDate('merchant-uuid', '2026-03-18');
 
-#### Lister par date
-
-```php
-$txns = $isv->transactions->listByDate('merchant-uuid', '2026-03-18');
-// Retourne directement le tableau de transactions
-```
-
-`GET /api/transactions?date={date}` (Composite Auth)
-
-#### Capturer un preauth
-
-```php
+// Capturer une pre-autorisation
 $isv->transactions->capture(
-    transactionId: 'preauth-uuid',
+    transactionId: 'preauth-txn-uuid',
     connectedMerchantId: 'merchant-uuid',
-    amount: 1500,       // en centimes
-    isvAmount: 100,      // commission ISV
+    amount: 1500,
+    isvAmount: 100,
 );
-```
 
-`POST /api/transactions/{transactionId}` avec `Amount` + `IsvAmount` (PascalCase)
-
-#### Paiement recurrent
-
-```php
+// Paiement recurrent
 $isv->transactions->recurring(
     initialTransactionId: 'initial-txn-uuid',
     connectedMerchantId: 'merchant-uuid',
     amount: 1500,
     isvAmount: 100,
-    sourceCode: null,    // optionnel
 );
-```
 
-`POST /api/transactions/{initialTransactionId}` (Composite Auth)
-
-#### Annuler / rembourser
-
-```php
 // Remboursement total
 $isv->transactions->cancel('txn-uuid', 'merchant-uuid');
 
-// Remboursement partiel (500 centimes = 5,00 EUR)
+// Remboursement partiel (5,00 EUR)
 $isv->transactions->cancel('txn-uuid', 'merchant-uuid', amount: 500);
 ```
 
-`DELETE /api/transactions/{transactionId}` (Composite Auth)
+**Prerequis** : l'option "Allow recurring payments and pre-auth captures via API" doit etre activee dans Settings > API Access du compte ISV.
 
 ---
 
-### 5. EcrTerminals
+### 5. EcrTerminals — terminaux POS Cloud
 
-Operations POS terminal via Cloud Terminal API ISV.
+**Propriete** : `$isv->terminals`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->terminals`
+Terminaux de paiement Cloud POS ISV. Recherche, vente, polling de sessions, abort.
 
-#### Rechercher les terminaux
-
-```php
-$devices = $isv->terminals->search(merchantId: 'merchant-uuid');
-$devices = $isv->terminals->search(); // tous les terminaux de la plateforme
-```
-
-`POST /ecr/isv/v1/devices:search`
-
-#### Vente POS terminal
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `search` | `search(?string $merchantId, ?int $statusId, ?string $sourceCode)` | `array` |
+| `sale` | `sale(int $terminalId, int $amount, int $isvAmount, string $terminalMerchantId, string $cashRegisterId, ?string $merchantReference, int $currencyCode, ?string $sessionId)` | `array{session_id, success}` |
+| `getSession` | `getSession(string $sessionId)` | `array` |
+| `listSessions` | `listSessions(string $date)` | `array` |
+| `abort` | `abort(string $sessionId, string $cashRegisterId)` | `array` |
+| `pollUntilComplete` | `pollUntilComplete(string $sessionId, int $timeoutSeconds, int $intervalMs)` | `array` |
 
 ```php
+// Rechercher les terminaux d'un marchand
+$terminals = $isv->terminals->search(merchantId: 'merchant-uuid');
+
+// Vente POS ISV
 $session = $isv->terminals->sale(
     terminalId: 16014231,
-    amount: 100,                           // 1,00 EUR
-    isvAmount: 10,                         // 0,10 EUR commission
+    amount: 1500,
+    isvAmount: 100,
     terminalMerchantId: 'merchant-uuid',
-    cashRegisterId: 'CR-01',
-    merchantReference: 'sale_456',         // optionnel
-    currencyCode: 978,                     // EUR (defaut)
-    sessionId: null,                       // auto-genere si null
+    cashRegisterId: 'PratiConnect-CR1',
+    merchantReference: 'INV-2026-001',
 );
 
 echo $session['session_id']; // UUID de la session
-```
 
-`POST /ecr/isv/v1/transactions:sale`
+// Polling jusqu'au resultat (defaut: 120s timeout, 3s intervalle)
+$result = $isv->terminals->pollUntilComplete($session['session_id']);
 
-#### Polling du resultat
+// Interpreter le resultat avec l'enum
+use QrCommunication\VivaIsv\Enums\EcrEventId;
 
-```php
-// Polling manuel
-$result = $isv->terminals->getSession($session['session_id']);
-
-// Polling automatique (attend le resultat ou timeout)
-$result = $isv->terminals->pollUntilComplete(
-    sessionId: $session['session_id'],
-    timeoutSeconds: 120,   // defaut 120s
-    intervalMs: 3000,      // defaut 3000ms
-);
-
-if ($result['success']) {
-    echo "Transaction: {$result['transactionId']}";
+$eventId = EcrEventId::tryFrom($result['eventId']);
+if ($eventId?->isSuccessful()) {
+    echo 'Transaction reussie : ' . $result['transactionId'];
 } else {
-    $eventId = EcrEventId::from($result['eventId']);
-    echo "Erreur: {$eventId->label()}";
+    echo 'Echec : ' . $eventId?->label();
 }
-```
 
-`GET /ecr/isv/v1/sessions/{sessionId}`
+// Annuler une session active
+$isv->terminals->abort('session-uuid', 'PratiConnect-CR1');
 
-#### Lister les sessions
+// Consulter une session
+$session = $isv->terminals->getSession('session-uuid');
 
-```php
+// Lister les sessions d'une journee
 $sessions = $isv->terminals->listSessions('2026-03-18');
 ```
 
-`GET /ecr/isv/v1/sessions?date={date}`
-
-#### Annuler une session en cours
-
-```php
-$isv->terminals->abort($sessionId, cashRegisterId: 'CR-01');
-```
-
-`GET /ecr/isv/v1/sessions:abort/{sessionId}?cashRegisterId={id}`
-
-> **Attention :** Abort utilise GET (pas DELETE) avec `cashRegisterId` en query param.
-
-> **Preauth ISV via Cloud Terminal n'est PAS supporte** par Viva. Le terminal retourne `eventId: 6000`. Utiliser Smart Checkout a la place.
+**Notes** :
+- La pre-autorisation n'est PAS supportee via Cloud Terminal ISV (utiliser Smart Checkout avec `preauth: true`)
+- L'abort utilise GET (pas DELETE) — particularite de l'API Viva
+- Le `sessionId` est auto-genere si non fourni
+- Le SDK construit `isvDetails` automatiquement
 
 ---
 
-### 6. Transfers
+### 6. Transfers — transferts marketplace
 
-Transferts de fonds vers les comptes connectes (marketplace).
+**Propriete** : `$isv->transfers`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->transfers`
+Envoi et annulation de transferts de fonds vers les comptes connectes.
 
-#### Envoyer des fonds
-
-```php
-// Transfert standalone
-$result = $isv->transfers->send(
-    targetAccountId: 'seller-account-uuid',
-    amount: 1000,                                  // 10,00 EUR
-    description: 'Paiement vendeur',
-);
-
-echo $result['transferId']; // UUID du transfert
-
-// Transfert lie a une transaction existante
-$result = $isv->transfers->send(
-    targetAccountId: 'seller-account-uuid',
-    amount: 1000,
-    transactionId: 'txn-uuid',
-    description: 'Commission vendeur',
-);
-
-// Transfert depuis un wallet specifique
-$result = $isv->transfers->send(
-    targetAccountId: 'seller-account-uuid',
-    amount: 1000,
-    sourceWalletId: 'wallet-uuid',
-);
-```
-
-`POST /platforms/v1/transfers`
-
-#### Annuler un transfert
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `send` | `send(string $targetAccountId, int $amount, ?string $sourceWalletId, ?string $transactionId, ?string $description)` | `array{transferId}` |
+| `reverse` | `reverse(string $transferId, ?int $amount)` | `array{transferId}` |
 
 ```php
-// Annulation totale
+// Envoyer des fonds a un vendeur
+$transfer = $isv->transfers->send(
+    targetAccountId: 'seller-account-uuid',
+    amount: 1000,                           // 10,00 EUR
+    transactionId: 'txn-uuid',               // Lier a une transaction
+    description: 'Commission mars 2026',
+);
+
+echo $transfer['transferId'];
+
+// Annuler totalement un transfert
 $isv->transfers->reverse('transfer-uuid');
 
-// Annulation partielle (500 centimes)
+// Annuler partiellement (5,00 EUR)
 $isv->transfers->reverse('transfer-uuid', amount: 500);
 ```
 
-`POST /platforms/v1/transfers/{transferId}:reverse`
-
 ---
 
-### 7. MarketplaceOrders
+### 7. MarketplaceOrders — ordres marketplace
 
-Ordres de paiement marketplace avec transfert automatique vers le vendeur.
+**Propriete** : `$isv->marketplace`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->marketplace`
+Ordres marketplace avec transfert automatique vers le vendeur et gestion des reversals.
 
-#### Creer un ordre marketplace
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `create` | `create(int $amount, string $sellerAccountId, int $sellerAmount, ?string $customerDescription, ?string $merchantReference, ?string $sourceCode, bool $preauth)` | `array{order_code, checkout_url, platform_fee}` |
+| `cancel` | `cancel(string $transactionId, ?int $amount, bool $reverseTransfers, bool $refundPlatformFee)` | `array` |
 
 ```php
+// Creer un ordre marketplace
 $order = $isv->marketplace->create(
-    amount: 5000,                                  // 50,00 EUR total
-    sellerAccountId: 'seller-account-uuid',
-    sellerAmount: 4000,                            // 40,00 EUR au vendeur
+    amount: 1500,                    // 15,00 EUR total
+    sellerAccountId: 'seller-uuid',
+    sellerAmount: 1200,              // 12,00 EUR au vendeur
     customerDescription: 'Achat marketplace',
-    merchantReference: 'order_789',
-    sourceCode: null,                              // optionnel
-    preauth: false,
 );
 
-echo $order['order_code'];    // Code de l'ordre
-echo $order['checkout_url'];  // URL Smart Checkout
-echo $order['platform_fee'];  // 1000 (= 50,00 - 40,00 = 10,00 EUR commission)
-```
+echo $order['order_code'];
+echo $order['checkout_url'];
+echo $order['platform_fee'];  // 300 (3,00 EUR de commission)
 
-`POST /checkout/v2/orders/`
-
-Le `transfer` parameter dans le body declenche la distribution automatique :
-- `sellerAmount` -> va au vendeur
-- `amount - sellerAmount` -> reste sur le compte plateforme (commission)
-
-#### Annuler une transaction marketplace
-
-```php
-// Remboursement total avec reversal des transferts vendeur
+// Remboursement total avec reversal des transferts
 $isv->marketplace->cancel('txn-uuid');
 
-// Remboursement partiel
-$isv->marketplace->cancel('txn-uuid', amount: 2500);
-
-// Options avancees
+// Remboursement partiel sans rembourser la commission plateforme
 $isv->marketplace->cancel(
     transactionId: 'txn-uuid',
-    amount: null,                  // remboursement total
-    reverseTransfers: true,        // annuler les transferts vendeur (defaut: true)
-    refundPlatformFee: false,      // rembourser la commission plateforme (defaut: false)
+    amount: 500,
+    reverseTransfers: true,
+    refundPlatformFee: false,
 );
 ```
-
-`DELETE /api/transactions/{transactionId}` (Bearer auth)
 
 ---
 
-### 8. NativeCheckoutIsv
+### 8. NativeCheckoutIsv — paiement natif ISV
 
-Paiement server-to-server sans redirection Smart Checkout. Le client collecte les donnees carte via le SDK JS Viva, qui retourne un `paymentData` chiffre.
+**Propriete** : `$isv->nativeCheckout`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->nativeCheckout`
+Paiement natif server-to-server pour les marchands connectes, sans redirection Smart Checkout.
 
-#### Flux complet
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `createChargeToken` | `createChargeToken(string $connectedMerchantId, int $amount, string $paymentData, int $paymentMethodId)` | `array{chargeToken}` |
+| `createTransaction` | `createTransaction(string $connectedMerchantId, string $chargeToken, int $amount, int $isvAmount, int $currencyCode, ?string $merchantTrns, ?string $customerTrns, bool $preauth)` | `array{transactionId, statusId}` |
 
-```
-Client (navigateur)              Serveur                      Viva API
-     |                              |                              |
-     |-- Saisie carte via JS SDK -->|                              |
-     |<- paymentData (chiffre) -----|                              |
-     |                              |-- createChargeToken() ------>|
-     |                              |<- chargeToken ---------------|
-     |                              |-- createTransaction() ------>|
-     |                              |<- transactionId -------------|
-     |<-- Resultat paiement --------|                              |
-```
-
-#### Generer un charge token
+**Flux** :
+1. Le client collecte les donnees carte via le JS SDK Viva et obtient `paymentData` (chiffre)
+2. Votre serveur cree un charge token via `createChargeToken()`
+3. Votre serveur execute la transaction via `createTransaction()`
 
 ```php
+// Etape 1 : creer un charge token
 $token = $isv->nativeCheckout->createChargeToken(
     connectedMerchantId: 'merchant-uuid',
-    amount: 1500,                              // 15,00 EUR
-    paymentData: $encryptedCardData,           // depuis le SDK JS Viva
-    paymentMethodId: 10,                       // 10 = carte (defaut)
+    amount: 1500,
+    paymentData: $encryptedCardData,  // Du JS SDK Viva
 );
 
-echo $token['chargeToken']; // Token a utiliser pour la transaction
-```
-
-`POST /nativecheckout/v2/isv/chargetokens?MerchantId={uuid}`
-
-#### Executer une transaction
-
-```php
+// Etape 2 : executer la transaction
 $txn = $isv->nativeCheckout->createTransaction(
     connectedMerchantId: 'merchant-uuid',
     chargeToken: $token['chargeToken'],
-    amount: 1500,                              // 15,00 EUR
-    isvAmount: 100,                            // 1,00 EUR commission ISV
-    currencyCode: 978,                         // EUR (defaut)
-    merchantTrns: 'session_123',               // reference interne
-    customerTrns: 'Consultation',              // visible par le client
-    preauth: false,                            // pre-autorisation uniquement
+    amount: 1500,
+    isvAmount: 100,
+    merchantTrns: 'INV-2026-001',
+    customerTrns: 'Consultation bien-etre',
 );
 
-echo $txn['transactionId']; // UUID de la transaction
-echo $txn['statusId'];      // Statut (F = Final)
+echo $txn['transactionId'];
+echo $txn['statusId'];
 ```
-
-`POST /nativecheckout/v2/isv/transactions?MerchantId={uuid}`
-
-> **Validation SDK :** `isvAmount` ne peut pas depasser `amount`. Le SDK lance `InvalidArgumentException`.
 
 ---
 
-### 9. IsvWebhooks
+### 9. IsvWebhooks — CRUD webhooks ISV
 
-Gestion CRUD des webhooks ISV via l'API. Permet de creer, lister, modifier et supprimer des webhooks programmatiquement.
+**Propriete** : `$isv->isvWebhooks`
 
-**Auth :** Bearer ISV OAuth (New API) | **SDK :** `$isv->isvWebhooks`
+Creation, listing, mise a jour et suppression d'abonnements webhook ISV.
 
-#### Creer un webhook
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `create` | `create(string $url, string $eventType, ?string $description)` | `array` (avec `webhookId`) |
+| `list` | `list()` | `array` |
+| `update` | `update(string $webhookId, string $url, ?string $eventType)` | `array` |
+| `delete` | `delete(string $webhookId)` | `array` |
 
 ```php
+// Creer un webhook
 $webhook = $isv->isvWebhooks->create(
-    url: 'https://app.com/webhooks/viva',
+    url: 'https://myapp.com/webhooks/viva',
     eventType: 'transaction.payment.created',
-    description: 'Notifications de paiement',  // optionnel
+    description: 'Notifications de paiement',
 );
 
-echo $webhook['webhookId']; // UUID du webhook cree
-```
-
-`POST /isv/v1/webhooks`
-
-#### Lister tous les webhooks
-
-```php
+// Lister
 $webhooks = $isv->isvWebhooks->list();
-```
 
-`GET /isv/v1/webhooks`
-
-#### Modifier un webhook
-
-```php
+// Modifier
 $isv->isvWebhooks->update(
-    webhookId: 'webhook-uuid',
-    url: 'https://app.com/webhooks/viva-v2',
-    eventType: 'transaction.refund.created',  // optionnel
+    webhookId: $webhook['webhookId'],
+    url: 'https://myapp.com/webhooks/viva-v2',
+    eventType: 'transaction.refund.created',
 );
+
+// Supprimer
+$isv->isvWebhooks->delete($webhook['webhookId']);
 ```
-
-`PUT /isv/v1/webhooks/{webhookId}`
-
-#### Supprimer un webhook
-
-```php
-$isv->isvWebhooks->delete('webhook-uuid');
-```
-
-`DELETE /isv/v1/webhooks/{webhookId}`
 
 ---
 
-### 10. Webhooks
+### 10. Webhooks — verification et parsing
 
-Verification et parsing des evenements webhook Viva Wallet.
+**Propriete** : `$isv->webhooks`
 
-**Auth :** Aucune | **SDK :** `$isv->webhooks`
+Verification de la requete GET initiale de Viva Wallet et parsing des payloads POST (21 types d'evenements).
 
-#### Verification (GET)
-
-Viva Wallet envoie une requete GET pour valider l'URL du webhook. Repondre avec le JSON fourni par le SDK :
-
-```php
-$response = $isv->webhooks->verificationResponse('your-verification-key');
-// => ['StatusCode' => 0, 'Key' => 'your-verification-key']
-
-// Dans Laravel :
-return response()->json($response);
-```
-
-#### Parser un evenement (POST)
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `verificationResponse` | `verificationResponse(string $verificationKey)` | `array{StatusCode, Key}` |
+| `parse` | `parse(string $rawBody)` | `array{event_type, event_type_id, event_data}` |
+| `isKnownEvent` | `Webhooks::isKnownEvent(int $eventTypeId)` (statique) | `bool` |
 
 ```php
-$event = $isv->webhooks->parse($request->getContent());
+// GET — verification initiale
+$verificationKey = config('services.viva.verification_key');
+return response()->json(
+    $isv->webhooks->verificationResponse($verificationKey)
+);
+// => {"StatusCode": 0, "Key": "votre-cle"}
 
-echo $event['event_type'];    // ex. 'transaction.payment.created'
-echo $event['event_type_id']; // ex. 1796
+// POST — parsing des evenements
+$event = $isv->webhooks->parse(file_get_contents('php://input'));
+
+echo $event['event_type'];     // 'transaction.payment.created'
+echo $event['event_type_id'];  // 1796
 $data = $event['event_data'];
 
-// Traiter selon le type
-match ($event['event_type']) {
-    'transaction.payment.created'              => handlePayment($data),
-    'transaction.refund.created'               => handleRefund($data),
-    'transaction.preauth.completed'            => handleCaptured($data),
-    'account.connected'                        => handleNewMerchant($data),
-    'account.verification.status.changed'      => handleVerification($data),
-    'transfer.created'                         => handleTransfer($data),
-    'pos.session.created'                      => handlePosSession($data),
-    default                                    => logger()->info("Unhandled: {$event['event_type']}"),
-};
-```
+switch ($event['event_type']) {
+    case 'transaction.payment.created':
+        // Traiter le paiement
+        break;
+    case 'transaction.refund.created':
+        // Traiter le remboursement
+        break;
+    case 'account.connected':
+        // Nouveau marchand connecte
+        break;
+}
 
-#### Verifier si un evenement est connu
-
-```php
+// Verifier si un EventTypeId est connu (methode statique)
 use QrCommunication\VivaIsv\Resources\Webhooks;
 
-Webhooks::isKnownEvent(1796); // true  — transaction.payment.created
-Webhooks::isKnownEvent(9999); // false — evenement inconnu
-
-// Constante avec tous les evenements
-$allEvents = Webhooks::EVENTS;
-// [1796 => 'transaction.payment.created', 1797 => 'transaction.refund.created', ...]
-```
-
-#### Les 21 evenements webhook
-
-| EventTypeId | event_type | Description |
-|-------------|-----------|-------------|
-| 1796 | `transaction.payment.created` | Paiement effectue |
-| 1797 | `transaction.refund.created` | Remboursement effectue |
-| 1798 | `transaction.payment.cancelled` | Paiement annule |
-| 1799 | `transaction.reversal.created` | Reversal cree |
-| 1800 | `transaction.preauth.created` | Pre-autorisation creee |
-| 1801 | `transaction.preauth.completed` | Pre-autorisation capturee |
-| 1802 | `transaction.preauth.cancelled` | Pre-autorisation annulee |
-| 1810 | `pos.session.created` | Session POS creee |
-| 1811 | `pos.session.failed` | Session POS echouee |
-| 1812 | `transaction.price.calculated` | Prix calcule |
-| 1813 | `transaction.failed` | Transaction echouee |
-| 1819 | `account.connected` | Compte connecte |
-| 1820 | `account.verification.status.changed` | Statut verification change |
-| 1821 | `account.transaction.created` | Transaction compte creee |
-| 1822 | `command.bank.transfer.created` | Virement bancaire cree |
-| 1823 | `command.bank.transfer.executed` | Virement bancaire execute |
-| 1824 | `transfer.created` | Transfert cree |
-| 1825 | `obligation.created` | Obligation creee |
-| 1826 | `obligation.captured` | Obligation capturee |
-| 1827 | `order.updated` | Ordre mis a jour |
-| 1828 | `sale.transactions.file` | Fichier transactions vente |
-
----
-
-## Enums
-
-### EcrEventId
-
-Codes evenements Cloud Terminal, retournes dans `eventId` lors du polling.
-
-```php
-use QrCommunication\VivaIsv\Enums\EcrEventId;
-
-$event = EcrEventId::from(1100);
-$event->shouldPoll();   // true — continuer a poller
-$event->isTerminal();   // false — pas encore un etat final
-$event->isSuccessful(); // false
-$event->label();        // 'In progress'
-```
-
-| eventId | Enum | Signification | `shouldPoll()` | `isTerminal()` |
-|---------|------|---------------|-----------------|-----------------|
-| `0` | `SUCCESS` | Transaction reussie | `false` | `true` |
-| `1003` | `TERMINAL_TIMEOUT` | Terminal timeout | `false` | `true` |
-| `1006` | `DECLINED` | Refusee par le serveur | `false` | `true` |
-| `1016` | `ABORTED` | Annulee (abort reussi) | `false` | `true` |
-| `1020` | `INSUFFICIENT_FUNDS` | Fonds insuffisants | `false` | `true` |
-| `1099` | `GENERIC_ERROR` | Erreur generique | `false` | `true` |
-| `1100` | `IN_PROGRESS` | En cours | **`true`** | `false` |
-| `6000` | `BAD_PARAMS` | Parametres incorrects | `false` | `true` |
-
-### TransactionEventId
-
-Codes raison de declin, retournes dans `transactionEventId` lors du polling.
-
-```php
-use QrCommunication\VivaIsv\Enums\TransactionEventId;
-
-$decline = TransactionEventId::from(10051);
-$decline->label();      // 'Insufficient funds'
-$decline->testAmount(); // 9951 (montant en centimes qui declenche ce declin en demo)
-```
-
-| EventId | Enum | Description | `testAmount()` |
-|---------|------|-------------|----------------|
-| `10001` | `REFER_TO_ISSUER` | Refer to issuer | `0` |
-| `10003` | `INVALID_MERCHANT` | Invalid merchant | `0` |
-| `10004` | `PICKUP_CARD` | Pickup card | `0` |
-| `10005` | `DO_NOT_HONOR` | Do not honor | `0` |
-| `10006` | `GENERAL_ERROR` | General error | `9906` |
-| `10012` | `INVALID_TRANSACTION` | Invalid transaction | `0` |
-| `10013` | `INVALID_AMOUNT` | Invalid amount | `0` |
-| `10014` | `INVALID_CARD` | Invalid card | `9914` |
-| `10030` | `FORMAT_ERROR` | Format error | `0` |
-| `10041` | `LOST_CARD` | Lost card | `0` |
-| `10043` | `STOLEN_CARD` | Stolen card | `9920` |
-| `10051` | `INSUFFICIENT_FUNDS` | Insufficient funds | `9951` |
-| `10054` | `EXPIRED_CARD` | Expired card | `9954` |
-| `10055` | `INCORRECT_PIN` | Incorrect PIN | `0` |
-| `10057` | `NOT_PERMITTED_CARDHOLDER` | Card not permitted | `9957` |
-| `10058` | `NOT_PERMITTED_TERMINAL` | Not permitted terminal | `0` |
-| `10061` | `WITHDRAWAL_LIMIT` | Withdrawal limit exceeded | `9961` |
-| `10062` | `RESTRICTED_CARD` | Restricted card | `0` |
-| `10063` | `SECURITY_VIOLATION` | Security violation | `0` |
-| `10065` | `ACTIVITY_LIMIT` | Activity limit | `0` |
-| `10068` | `LATE_RESPONSE` | Late response | `0` |
-| `10070` | `CALL_ISSUER` | Call issuer | `0` |
-| `10075` | `PIN_TRIES_EXCEEDED` | PIN tries exceeded | `0` |
-| `10200` | `UNMAPPED` | Unmapped decline | `0` |
-
----
-
-## Gestion des erreurs
-
-```php
-use QrCommunication\VivaIsv\Exceptions\AuthenticationException;
-use QrCommunication\VivaIsv\Exceptions\ApiException;
-use QrCommunication\VivaIsv\Exceptions\VivaException;
-
-try {
-    $order = $isv->orders->create(...);
-} catch (AuthenticationException $e) {
-    // Credentials ISV invalides (401)
-    echo "Auth failed: {$e->getMessage()}";
-} catch (ApiException $e) {
-    // Erreur API Viva (4xx/5xx)
-    echo "Error [{$e->httpStatus}]: {$e->getMessage()}";
-    echo "Viva error code: {$e->getErrorCode()}";
-    echo "Viva error text: {$e->getErrorText()}";
-    echo "Response body: " . json_encode($e->responseBody);
-} catch (VivaException $e) {
-    // Exception de base (toutes heritent de celle-ci)
+if (Webhooks::isKnownEvent(1796)) {
+    echo 'Evenement reconnu';
 }
 ```
-
-### Hierarchie des exceptions
-
-```
-VivaException (RuntimeException)
-  |-- httpStatus: int
-  |-- responseBody: ?array
-  |-- getErrorCode(): ?int
-  |-- getErrorText(): ?string
-  |
-  +-- AuthenticationException  — OAuth2 / credentials invalides (401)
-  +-- ApiException             — Erreur API generale (4xx, 5xx)
-```
-
-### Validation cote client
-
-Le SDK valide certaines regles avant l'appel API et lance `InvalidArgumentException` :
-
-- `isvAmount > amount` dans `IsvOrders::create()` et `NativeCheckoutIsv::createTransaction()`
-- Payload webhook invalide dans `Webhooks::parse()`
 
 ---
 
 ## Architecture
 
 ```
-VivaIsvClient (point d'entree)
-+-- accounts       -> ConnectedAccounts  (New API, Bearer    — /platforms/v1/)
-+-- isvAccounts    -> IsvAccounts        (New API, Bearer    — /isv/v1/)
-+-- orders         -> IsvOrders          (New API, Bearer    — /checkout/v2/isv/)
-+-- transactions   -> IsvTransactions    (Legacy API, Composite Basic Auth)
-+-- terminals      -> EcrTerminals       (New API, Bearer    — /ecr/isv/v1/)
-+-- transfers      -> Transfers          (New API, Bearer    — /platforms/v1/)
-+-- marketplace    -> MarketplaceOrders  (New API, Bearer    — /checkout/v2/orders/)
-+-- nativeCheckout -> NativeCheckoutIsv  (New API, Bearer    — /nativecheckout/v2/isv/)
-+-- isvWebhooks    -> IsvWebhooks        (New API, Bearer    — /isv/v1/)
-+-- webhooks       -> Webhooks           (pas d'auth)
-```
+VivaIsvClient
+├── $accounts          → ConnectedAccounts   (7 methodes)
+├── $isvAccounts       → IsvAccounts         (3 methodes)
+├── $orders            → IsvOrders           (2 methodes)
+├── $transactions      → IsvTransactions     (5 methodes)
+├── $terminals         → EcrTerminals        (6 methodes)
+├── $transfers         → Transfers           (2 methodes)
+├── $marketplace       → MarketplaceOrders   (2 methodes)
+├── $nativeCheckout    → NativeCheckoutIsv   (2 methodes)
+├── $isvWebhooks       → IsvWebhooks         (4 methodes)
+└── $webhooks          → Webhooks            (3 methodes)
 
-### Structure du code
+36 methodes au total — 10 ressources
+```
 
 ```
 src/
-+-- VivaIsvClient.php          # Point d'entree, expose les 10 modules
-+-- IsvConfig.php              # Configuration (3 jeux de credentials + URLs)
-+-- HttpClient.php             # Client HTTP avec 3 modes d'auth + token cache
-+-- Enums/
-|   +-- Environment.php        # DEMO / PRODUCTION (URLs par env)
-|   +-- EcrEventId.php         # Event IDs Cloud Terminal (8 cas)
-|   +-- TransactionEventId.php # Codes de declin (24 cas + testAmount)
-+-- Exceptions/
-|   +-- VivaException.php      # Exception de base (httpStatus, responseBody)
-|   +-- ApiException.php       # Erreur API
-|   +-- AuthenticationException.php  # Echec OAuth2 (401)
-+-- Resources/
-    +-- ConnectedAccounts.php  # CRUD comptes marchands (/platforms/v1/)
-    +-- IsvAccounts.php        # CRUD comptes ISV (/isv/v1/)
-    +-- IsvOrders.php          # Smart Checkout avec commission
-    +-- IsvTransactions.php    # Capture, recurring, cancel (Composite Auth)
-    +-- EcrTerminals.php       # POS terminal (sale, poll, abort)
-    +-- Transfers.php          # Transferts vers comptes connectes
-    +-- MarketplaceOrders.php  # Ordres marketplace avec split
-    +-- NativeCheckoutIsv.php  # Native Checkout ISV (charge tokens + transactions)
-    +-- IsvWebhooks.php        # CRUD webhooks ISV (/isv/v1/)
-    +-- Webhooks.php           # Verification + parsing (21 evenements)
+├── VivaIsvClient.php              # Point d'entree, instancie les 10 ressources
+├── IsvConfig.php                  # Configuration (6 credentials + environnement)
+├── HttpClient.php                 # Client HTTP (Bearer, Basic, Composite Auth)
+├── Enums/
+│   ├── Environment.php            # demo | production
+│   ├── EcrEventId.php             # 8 codes resultat POS
+│   └── TransactionEventId.php     # 24 codes de declin
+├── Exceptions/
+│   ├── VivaException.php          # Exception de base
+│   ├── ApiException.php           # Erreurs API (4xx, 5xx)
+│   └── AuthenticationException.php # Erreurs OAuth2 (401)
+└── Resources/
+    ├── ConnectedAccounts.php      # 7 methodes
+    ├── IsvAccounts.php            # 3 methodes
+    ├── IsvOrders.php              # 2 methodes
+    ├── IsvTransactions.php        # 5 methodes
+    ├── EcrTerminals.php           # 6 methodes
+    ├── Transfers.php              # 2 methodes
+    ├── MarketplaceOrders.php      # 2 methodes
+    ├── NativeCheckoutIsv.php      # 2 methodes
+    ├── IsvWebhooks.php            # 4 methodes
+    └── Webhooks.php               # 3 methodes
 ```
 
-### Diagramme d'architecture
+---
+
+## Authentification
+
+Le SDK gere **3 modes d'authentification** automatiquement. L'utilisateur fournit les 6 credentials au constructeur et le SDK choisit le bon mode pour chaque appel.
+
+| Mode | Username | Password | Utilise pour |
+|------|----------|----------|-------------|
+| **ISV OAuth2 (Bearer)** | `clientId` | `clientSecret` | Comptes, ordres ISV, terminaux, transferts, marketplace, native checkout, webhooks ISV |
+| **ISV Basic Auth** | `merchantId` | `apiKey` | Operations Legacy sur le propre compte ISV |
+| **Composite Basic Auth** | `{resellerId}:{connectedMerchantId}` | `resellerApiKey` | Transactions des marchands connectes (capture, recurrent, annulation) |
+
+### Composite Basic Auth (non documente par Viva Wallet)
+
+Le format `{ResellerID}:{ConnectedMerchantID}` comme username avec `{ResellerAPIKey}` comme password a ete decouvert empiriquement lors de la certification ISV. Ce format n'est pas documente dans la documentation officielle Viva Wallet.
+
+Le SDK construit automatiquement ce header — vous n'avez qu'a passer le `connectedMerchantId` aux methodes de `$isv->transactions`.
+
+### Token OAuth2
+
+Le token Bearer est obtenu automatiquement et rafraichi avant expiration (marge de 60 secondes). Pour forcer un refresh :
+
+```php
+$isv->invalidateToken();
+```
+
+---
+
+## Enums
+
+### EcrEventId — codes resultat Cloud Terminal
+
+```php
+use QrCommunication\VivaIsv\Enums\EcrEventId;
+
+$event = EcrEventId::tryFrom($session['eventId']);
+$event->isSuccessful();  // true si SUCCESS (0)
+$event->isTerminal();    // true si etat final (pas IN_PROGRESS)
+$event->shouldPoll();    // true si IN_PROGRESS (1100)
+$event->label();         // 'Transaction successful', 'Declined', etc.
+```
+
+| Valeur | Constante | Description |
+|--------|-----------|-------------|
+| 0 | `SUCCESS` | Transaction reussie |
+| 1003 | `TERMINAL_TIMEOUT` | Terminal hors delai |
+| 1006 | `DECLINED` | Transaction refusee |
+| 1016 | `ABORTED` | Transaction annulee |
+| 1020 | `INSUFFICIENT_FUNDS` | Fonds insuffisants |
+| 1099 | `GENERIC_ERROR` | Erreur generique |
+| 1100 | `IN_PROGRESS` | En cours (continuer le polling) |
+| 6000 | `BAD_PARAMS` | Parametres invalides |
+
+### TransactionEventId — codes de declin detailles
+
+```php
+use QrCommunication\VivaIsv\Enums\TransactionEventId;
+
+$decline = TransactionEventId::tryFrom($session['transactionEventId']);
+echo $decline->label();       // 'Insufficient funds'
+echo $decline->testAmount();  // 9951 (montant pour declencher ce declin en demo)
+```
+
+| Valeur | Constante | Montant test |
+|--------|-----------|--------------|
+| 10001 | `REFER_TO_ISSUER` | — |
+| 10003 | `INVALID_MERCHANT` | — |
+| 10004 | `PICKUP_CARD` | — |
+| 10005 | `DO_NOT_HONOR` | — |
+| 10006 | `GENERAL_ERROR` | 9906 |
+| 10012 | `INVALID_TRANSACTION` | — |
+| 10013 | `INVALID_AMOUNT` | — |
+| 10014 | `INVALID_CARD` | 9914 |
+| 10030 | `FORMAT_ERROR` | — |
+| 10041 | `LOST_CARD` | — |
+| 10043 | `STOLEN_CARD` | 9920 |
+| 10051 | `INSUFFICIENT_FUNDS` | 9951 |
+| 10054 | `EXPIRED_CARD` | 9954 |
+| 10055 | `INCORRECT_PIN` | — |
+| 10057 | `NOT_PERMITTED_CARDHOLDER` | 9957 |
+| 10058 | `NOT_PERMITTED_TERMINAL` | — |
+| 10061 | `WITHDRAWAL_LIMIT` | 9961 |
+| 10062 | `RESTRICTED_CARD` | — |
+| 10063 | `SECURITY_VIOLATION` | — |
+| 10065 | `ACTIVITY_LIMIT` | — |
+| 10068 | `LATE_RESPONSE` | — |
+| 10070 | `CALL_ISSUER` | — |
+| 10075 | `PIN_TRIES_EXCEEDED` | — |
+| 10200 | `UNMAPPED` | — |
+
+### Environment
+
+```php
+use QrCommunication\VivaIsv\Enums\Environment;
+
+// Passer en string ou en enum
+$isv = new VivaIsvClient(..., environment: 'demo');
+$isv = new VivaIsvClient(..., environment: Environment::PRODUCTION);
+```
+
+---
+
+## Gestion des erreurs
+
+Le SDK definit 3 exceptions dans le namespace `QrCommunication\VivaIsv\Exceptions` :
 
 ```
-                    +-------------------+
-                    |  VivaIsvClient    |
-                    |  (point d'entree) |
-                    +--------+----------+
-                             |
-              +--------------+--------------+
-              |                             |
-    +---------v---------+       +-----------v-----------+
-    |    IsvConfig       |       |      HttpClient       |
-    |  3 credential sets |       |  3 auth modes + cache |
-    +--------------------+       +-----+-----+-----+----+
-                                       |     |     |
-                          +------------+     |     +------------+
-                          |                  |                  |
-               +----------v----+   +---------v------+  +-------v----------+
-               | Bearer (New)  |   | Basic (Legacy) |  | Composite (ISV)  |
-               | api.viva...   |   | www.viva...    |  | www.viva...      |
-               +-------+-------+   +-------+--------+  +-------+----------+
-                       |                   |                    |
-          +----+----+--+--+----+----+      |                    |
-          |    |    |     |    |    |       |                    |
-       Accounts  IsvAcct Orders ECR    Transactions         Transactions
-       Marketplace Transfers          (own account)       (connected merchants)
-       NativeCheckout IsvWebhooks
+RuntimeException
+└── VivaException         (base — httpStatus, responseBody, getErrorCode(), getErrorText())
+    ├── ApiException      (erreurs API 4xx/5xx)
+    └── AuthenticationException  (erreurs OAuth2 — httpStatus = 401)
 ```
+
+```php
+use QrCommunication\VivaIsv\Exceptions\ApiException;
+use QrCommunication\VivaIsv\Exceptions\AuthenticationException;
+
+try {
+    $order = $isv->orders->create('merchant-uuid', 1500, isvAmount: 100);
+} catch (AuthenticationException $e) {
+    // Credentials ISV invalides
+    echo $e->getMessage(); // 'ISV OAuth2 authentication failed: ...'
+} catch (ApiException $e) {
+    // Erreur API (400, 404, 500, etc.)
+    echo $e->getMessage();       // Message d'erreur
+    echo $e->httpStatus;         // Code HTTP
+    echo $e->getErrorCode();     // Code Viva (ErrorCode)
+    echo $e->getErrorText();     // Texte Viva (ErrorText)
+    print_r($e->responseBody);   // Body JSON complet
+}
+```
+
+Les methodes `capture()` et `recurring()` lancent `ApiException` si `ErrorCode !== 0` dans la reponse Viva.
+
+---
+
+## Webhooks (21 evenements)
+
+Le SDK reconnait 21 types d'evenements webhook :
+
+| ID | Type |
+|----|------|
+| 1796 | `transaction.payment.created` |
+| 1797 | `transaction.refund.created` |
+| 1798 | `transaction.payment.cancelled` |
+| 1799 | `transaction.reversal.created` |
+| 1800 | `transaction.preauth.created` |
+| 1801 | `transaction.preauth.completed` |
+| 1802 | `transaction.preauth.cancelled` |
+| 1810 | `pos.session.created` |
+| 1811 | `pos.session.failed` |
+| 1812 | `transaction.price.calculated` |
+| 1813 | `transaction.failed` |
+| 1819 | `account.connected` |
+| 1820 | `account.verification.status.changed` |
+| 1821 | `account.transaction.created` |
+| 1822 | `command.bank.transfer.created` |
+| 1823 | `command.bank.transfer.executed` |
+| 1824 | `transfer.created` |
+| 1825 | `obligation.created` |
+| 1826 | `obligation.captured` |
+| 1827 | `order.updated` |
+| 1828 | `sale.transactions.file` |
+
+### Gestion des webhooks ISV (CRUD)
+
+```php
+// Creer
+$wh = $isv->isvWebhooks->create(
+    url: 'https://myapp.com/webhooks/viva',
+    eventType: 'transaction.payment.created',
+);
+
+// Lister
+$all = $isv->isvWebhooks->list();
+
+// Modifier
+$isv->isvWebhooks->update($wh['webhookId'], url: 'https://myapp.com/v2/webhooks');
+
+// Supprimer
+$isv->isvWebhooks->delete($wh['webhookId']);
+```
+
+### Reception et parsing
+
+```php
+// Endpoint GET — verification initiale
+public function verify(Request $request)
+{
+    return response()->json(
+        $this->isv->webhooks->verificationResponse(
+            config('services.viva.verification_key')
+        )
+    );
+}
+
+// Endpoint POST — reception des evenements
+public function handle(Request $request)
+{
+    $event = $this->isv->webhooks->parse($request->getContent());
+
+    match ($event['event_type']) {
+        'transaction.payment.created' => $this->handlePayment($event['event_data']),
+        'transaction.refund.created'  => $this->handleRefund($event['event_data']),
+        'account.connected'           => $this->handleNewAccount($event['event_data']),
+        default => null,
+    };
+
+    return response()->json(['status' => 'ok']);
+}
+```
+
+---
+
+## Pieges evites par le SDK
+
+Ces 9 pieges ont ete decouverts lors de la certification ISV. Le SDK les gere automatiquement — vous n'avez pas a vous en soucier.
+
+| # | Piege | Ce que le SDK fait pour vous |
+|---|-------|------------------------------|
+| 1 | **Composite Basic Auth** non documente (`ResellerID:MerchantID / ResellerAPIKey`) | Le `HttpClient` construit automatiquement le header composite pour chaque appel sur un marchand connecte |
+| 2 | **camelCase vs PascalCase** — New API en camelCase, Legacy API en PascalCase | Chaque ressource envoie les parametres dans la bonne casse |
+| 3 | **Pas de `sourceCode`** dans les ordres ISV (le marchand connecte utilise sa source par defaut) | `IsvOrders::create()` n'envoie jamais de `sourceCode` |
+| 4 | **`isvDetails`** obligatoire pour les ventes POS ISV | `EcrTerminals::sale()` construit `isvDetails` automatiquement |
+| 5 | **Abort POS** utilise GET (pas DELETE) avec `cashRegisterId` en query param | `EcrTerminals::abort()` utilise GET |
+| 6 | **Endpoints ISV** differents des endpoints marchands (`/ecr/isv/v1/` vs `/ecr/v1/`) | Chaque ressource utilise le bon prefixe |
+| 7 | **Token OAuth2** expire silencieusement | Le `HttpClient` rafraichit le token automatiquement avec une marge de 60s |
+| 8 | **Reponses vides** (200 sans body) sur certains endpoints POS | Le `HttpClient` retourne `[]` au lieu de crash JSON |
+| 9 | **`MerchantId`** en query string pour les ordres et native checkout ISV | Les methodes `create()` ajoutent automatiquement `?MerchantId=` |
+
+---
+
+## Test en sandbox
+
+Utiliser `environment: 'demo'` pour tester sans transactions reelles.
+
+### Carte de test
+
+| Champ | Valeur |
+|-------|--------|
+| Numero | `4111 1111 1111 1111` |
+| Expiration | Toute date future |
+| CVV | `111` |
+
+### Montants de test (declins)
+
+Utiliser `TransactionEventId::testAmount()` pour obtenir les montants qui declenchent chaque type de declin en demo :
+
+```php
+use QrCommunication\VivaIsv\Enums\TransactionEventId;
+
+// Montant qui declenche "Insufficient funds" en demo
+$amount = TransactionEventId::INSUFFICIENT_FUNDS->testAmount(); // 9951
+
+$order = $isv->orders->create('merchant-uuid', $amount);
+```
+
+| Montant (centimes) | Declin |
+|--------------------|--------|
+| 9951 | Fonds insuffisants |
+| 9954 | Carte expiree |
+| 9920 | Carte volee |
+| 9957 | Carte non autorisee |
+| 9961 | Limite de retrait |
+| 9906 | Erreur generale |
+| 9914 | Carte invalide |
 
 ---
 
 ## Documentation API interactive
 
-La specification OpenAPI 3.1 complete est disponible :
+Documentation interactive ReDoc disponible :
 
-- **Fichier :** [`docs/openapi.yaml`](docs/openapi.yaml) (egalement a la racine : [`openapi.yaml`](openapi.yaml))
-- **Documentation interactive :** **[ReDoc sur GitHub Pages](https://qrcommunication.github.io/sdk-php-viva-isv/)**
-
-La documentation ReDoc inclut :
-- Les 29 endpoints documentes avec exemples de requetes/reponses
-- Schemas de donnees detailles
-- Les 4 mecanismes d'authentification (incluant le Composite Basic Auth non documente)
-- Codes d'erreur, 21 evenements webhook et enums
-- Pieges decouverts lors de la certification ISV
+- **En ligne** : [qrcommunication.github.io/sdk-php-viva-isv](https://qrcommunication.github.io/sdk-php-viva-isv/)
+- **Locale** : ouvrir `docs/index.html` dans un navigateur
+- **OpenAPI** : `docs/openapi.yaml` ou `openapi.yaml` a la racine
 
 ---
 
-## Integration AI
+## Integration AI (Claude, Cursor, Copilot, Codex)
 
-Ce SDK inclut des fichiers d'instructions automatiquement detectes par les assistants AI :
+Ce SDK est concu pour etre facilement utilisable par les assistants IA :
 
-| Outil | Fichier | Detection |
-|-------|---------|-----------|
-| **Claude Code** | [`CLAUDE.md`](CLAUDE.md) | Automatique |
-| **Cursor** | [`.cursorrules`](.cursorrules) | Automatique |
-| **GitHub Copilot** | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Automatique |
-| **OpenAI Codex** | [`AGENTS.md`](AGENTS.md) | Automatique |
-| **Gemini** | [`CLAUDE.md`](CLAUDE.md) | Manuel (copier dans le contexte) |
+- **OpenAPI** : `openapi.yaml` a la racine — importable directement
+- **CLAUDE.md** : instructions specifiques pour Claude Code
+- **AGENTS.md** : roles et workflows pour les agents AI
+- **Types PHP stricts** : `declare(strict_types=1)` partout, enums PHP 8.1+, types de retour explicites
 
-Ces fichiers fournissent a l'assistant AI :
-- L'architecture ISV et les 3 modes d'authentification
-- Le Composite Basic Auth (non documente par Viva)
-- Le routing entre les 3 hosts API et les conventions de casse
-- Les 9 pieges ISV decouverts lors de la certification
-- Des exemples de code complets pour chaque resource (10 resources, 29+ endpoints)
-
----
-
-## Pieges connus (certification ISV)
-
-Les 9 pieges suivants ont ete decouverts lors de la certification ISV. Ils sont geres automatiquement par le SDK, mais il est important de les connaitre :
-
-| # | Piege | Consequence | Solution SDK |
-|---|-------|-------------|-------------|
-| 1 | **Bearer token sur Legacy API** | `401 Unauthorized` | `HttpClient` route automatiquement via `compositePost/Get/Delete` |
-| 2 | **ISV Basic Auth sur transaction marchand connecte** | `"api action disabled"` | Composite Auth utilise automatiquement |
-| 3 | **Connected merchant Basic Auth + IsvAmount** | `PaymentsRecurringIsvMissingReseller` | Le SDK injecte le contexte reseller |
-| 4 | **`isvAmount > amount`** | Rejete par l'API | `InvalidArgumentException` cote client |
-| 5 | **`scope=isv` dans le token** | `invalid_scope` | Aucun scope envoye |
-| 6 | **Preauth ISV via Cloud Terminal** | `eventId: 6000` | Utiliser Smart Checkout (`$isv->orders->create(preauth: true)`) |
-| 7 | **Capture preauth sans activation** | Echec silencieux | Documentation + verification |
-| 8 | **Abort ECR utilise GET pas DELETE** | `405 Method Not Allowed` | `$isv->terminals->abort()` utilise GET |
-| 9 | **`sourceCode` dans les ordres ISV** | Rejet ou mauvais routage | NE PAS envoyer — le SDK ne l'inclut pas |
-
----
-
-## Tests
-
-### Carte de test (demo)
-
-| Champ | Valeur |
-|-------|--------|
-| Numero | `4111111111111111` |
-| CVV | `111` |
-| Expiration | N'importe quelle date future |
-| 3DS password | `Secret!33` |
-
-### Montants de declin (centimes)
-
-Ces montants declenchent un declin specifique en environnement demo :
-
-| Centimes | TransactionEventId | Enum | Description |
-|----------|-------------------|------|-------------|
-| `9951` | 10051 | `INSUFFICIENT_FUNDS` | Fonds insuffisants |
-| `9954` | 10054 | `EXPIRED_CARD` | Carte expiree |
-| `9920` | 10043 | `STOLEN_CARD` | Carte volee |
-| `9957` | 10057 | `NOT_PERMITTED_CARDHOLDER` | Carte non autorisee |
-| `9961` | 10061 | `WITHDRAWAL_LIMIT` | Limite de retrait |
-| `9906` | 10006 | `GENERAL_ERROR` | Erreur generale |
-| `9914` | 10014 | `INVALID_CARD` | Carte invalide |
-
-### Lancer les tests
-
-```bash
-composer test
+```
+# Donner le contexte a l'IA
+@openapi.yaml
+@CLAUDE.md
+@src/VivaIsvClient.php
 ```
 
 ---
 
 ## Licence
 
-[MIT](LICENSE)
-
----
-
-<p align="center">
-  Developpe par <a href="https://qrcommunication.com"><strong>QrCommunication</strong></a>
-</p>
-
-<p align="center">
-  <a href="https://qrcommunication.com">https://qrcommunication.com</a>
-</p>
+[MIT](LICENSE) — QrCommunication
