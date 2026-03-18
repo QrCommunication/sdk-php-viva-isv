@@ -1,0 +1,40 @@
+You are working on the `qrcommunication/viva-isv-sdk` PHP package — a Viva Wallet ISV Partner API SDK.
+
+## Key Rules
+
+1. **Three auth modes**: Bearer (ISV OAuth), Basic Auth (own merchant), Composite Basic Auth (connected merchants).
+2. **Composite Basic Auth** (undocumented by Viva): Username = `{ResellerID}:{ConnectedMerchantID}`, Password = `{ResellerAPIKey}`.
+3. **All amounts are in cents** (int). €15.00 = 1500.
+4. **ISV orders**: POST `/checkout/v2/isv/orders?MerchantId={uuid}` — camelCase, NO sourceCode.
+5. **ISV transactions** (capture, recurring, cancel): Legacy API with Composite Basic Auth — PascalCase params.
+6. **ISV POS terminal**: `/ecr/isv/v1/transactions:sale` — Bearer token. Preauth NOT supported (use Smart Checkout).
+7. **Abort uses GET** (not DELETE) with `cashRegisterId` as query param.
+8. **Never send `scope=`** in token requests — causes `invalid_scope`.
+9. **connectedMerchantId is always explicit** — no global state.
+10. **Exceptions**: `ApiException` (4xx/5xx), `AuthenticationException` (401).
+11. **PHP 8.2+ strict types**, PSR-4 namespace `QrCommunication\VivaIsv\`.
+
+## File Structure
+
+- `src/VivaIsvClient.php` — Entry point, exposes 5 resources
+- `src/HttpClient.php` — Guzzle wrapper with 3 auth modes (Bearer, Basic, Composite)
+- `src/IsvConfig.php` — 3 credential sets + environment URLs + compositeUsername()
+- `src/Resources/ConnectedAccounts.php` — /platforms/v1/accounts
+- `src/Resources/IsvOrders.php` — /checkout/v2/isv/orders (with isvAmount validation)
+- `src/Resources/IsvTransactions.php` — Legacy API with Composite Basic Auth
+- `src/Resources/EcrTerminals.php` — /ecr/isv/v1/ (sale, poll, abort, search)
+- `src/Resources/Webhooks.php` — Verification + event parsing
+- `src/Enums/EcrEventId.php` — Cloud Terminal event IDs with shouldPoll()/isTerminal()
+- `src/Enums/TransactionEventId.php` — Decline codes with testAmount()
+
+## Critical Pitfalls
+
+- Bearer token on Legacy API → 401 (use Basic Auth)
+- ISV Basic Auth on connected merchant transaction → "api action disabled" (use Composite)
+- Connected merchant Basic Auth + IsvAmount → PaymentsRecurringIsvMissingReseller
+- Preauth ISV via Cloud Terminal → eventId 6000 (use Smart Checkout instead)
+
+## Test Card
+
+Number: 4111111111111111, CVV: 111, 3DS password: Secret!33
+Decline amounts: 9951 (insufficient), 9954 (expired), 9920 (stolen)

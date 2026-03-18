@@ -363,6 +363,27 @@ La documentation ReDoc inclut :
 
 ---
 
+## Intégration AI (Claude, Cursor, Copilot, Codex)
+
+Ce SDK inclut des fichiers d'instructions automatiquement détectés par les assistants AI :
+
+| Outil | Fichier | Détection |
+|-------|---------|-----------|
+| **Claude Code** | [`CLAUDE.md`](CLAUDE.md) | Automatique |
+| **Cursor** | [`.cursorrules`](.cursorrules) | Automatique |
+| **GitHub Copilot** | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Automatique |
+| **OpenAI Codex** | [`AGENTS.md`](AGENTS.md) | Automatique |
+| **Gemini** | [`CLAUDE.md`](CLAUDE.md) | Manuel (copier dans le contexte) |
+
+Ces fichiers fournissent à l'assistant AI :
+- L'architecture ISV et les 3 modes d'authentification
+- Le Composite Basic Auth (non documenté par Viva)
+- Le routing entre les 3 hosts API
+- Les pièges ISV découverts lors de la certification
+- Des exemples de code complets pour chaque resource
+
+---
+
 ## Pièges connus
 
 1. **Bearer token sur Legacy API** → 401. L'API legacy n'accepte QUE Basic Auth.
