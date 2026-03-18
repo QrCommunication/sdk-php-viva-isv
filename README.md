@@ -1,14 +1,41 @@
 # Viva Wallet ISV SDK for PHP
 
-SDK PHP pour l'API Viva Wallet ISV Partner — comptes connectés, ordres ISV, composite auth, Cloud Terminal.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PHP Version](https://img.shields.io/badge/PHP-%3E%3D%208.2-8892BF.svg)](https://php.net)
+[![Packagist](https://img.shields.io/badge/Packagist-qrcommunication%2Fviva--isv--sdk-orange.svg)](https://packagist.org/packages/qrcommunication/viva-isv-sdk)
+
+SDK PHP pour l'API **Viva Wallet ISV Partner** — comptes connectés, ordres ISV avec commission, composite auth, Cloud Terminal POS.
 
 > **Ce SDK couvre les opérations ISV** (marketplace, comptes connectés, split payments). Pour les opérations marchands standard, voir `sdk-php-viva-merchant`.
+
+---
+
+## Table des matières
+
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Comptes connectés](#comptes-connectés)
+- [Ordres ISV (Smart Checkout)](#ordres-isv-smart-checkout)
+- [Transactions ISV (Composite Auth)](#transactions-isv-composite-auth)
+- [POS Terminal (Cloud Terminal)](#pos-terminal-cloud-terminal)
+- [Webhooks](#webhooks)
+- [Enums utiles](#enums-utiles)
+- [Gestion des erreurs](#gestion-des-erreurs)
+- [Architecture](#architecture)
+- [Documentation API](#documentation-api)
+- [Pièges connus](#pièges-connus)
+- [Tests](#tests)
+- [Licence](#licence)
+
+---
 
 ## Installation
 
 ```bash
 composer require qrcommunication/viva-isv-sdk
 ```
+
+**Prérequis :** PHP 8.2+, extension `json`, extension `curl` (via Guzzle).
 
 ## Configuration
 
@@ -22,7 +49,7 @@ $isv = new VivaIsvClient(
     apiKey: 'isv-api-key',
     resellerId: 'reseller-uuid',
     resellerApiKey: 'reseller-api-key',
-    environment: 'demo',
+    environment: 'demo', // ou 'production'
 );
 ```
 
@@ -37,7 +64,24 @@ $isv = new VivaIsvClient(
 > **Composite Basic Auth** (non documenté par Viva) :
 > Username = `{ResellerID}:{ConnectedMerchantID}`, Password = `{ResellerAPIKey}`
 
-## Comptes Connectés
+### Environnements
+
+| Environnement | Accounts URL | API URL | Legacy URL |
+|---------------|-------------|---------|------------|
+| `demo` | `demo-accounts.vivapayments.com` | `demo-api.vivapayments.com` | `demo.vivapayments.com` |
+| `production` | `accounts.vivapayments.com` | `api.vivapayments.com` | `www.vivapayments.com` |
+
+### Vérifier la connexion
+
+```php
+if ($isv->testConnection()) {
+    echo 'Connexion ISV OK';
+}
+```
+
+---
+
+## Comptes connectés
 
 ```php
 // Créer un compte marchand connecté
@@ -49,16 +93,18 @@ $account = $isv->accounts->create(
 echo $account['accountId'];
 echo $account['invitation']['redirectUrl']; // URL KYB onboarding
 
-// Vérifier le statut
+// Obtenir les détails
 $info = $isv->accounts->get($accountId);
 echo $info['verificationStatus']; // Pending, Verified, Rejected
 
-// Raccourci
+// Raccourci vérification
 $isv->accounts->isVerified($accountId); // true/false
 
 // URL d'onboarding (si pas encore vérifié)
 $url = $isv->accounts->onboardingUrl($accountId);
 ```
+
+---
 
 ## Ordres ISV (Smart Checkout)
 
@@ -66,8 +112,8 @@ $url = $isv->accounts->onboardingUrl($accountId);
 // Créer un ordre avec commission ISV
 $order = $isv->orders->create(
     connectedMerchantId: 'merchant-uuid',
-    amount: 1500,                        // €15.00
-    isvAmount: 100,                      // €1.00 commission ISV
+    amount: 1500,                        // 15,00 €
+    isvAmount: 100,                      // 1,00 € commission ISV
     customerDescription: 'Consultation',
     merchantReference: 'session_123',
     allowRecurring: true,
@@ -78,11 +124,13 @@ echo $order['checkout_url'];
 // => https://demo.vivapayments.com/web/checkout?ref=1234567890
 ```
 
-> **IMPORTANT** : `isvAmount` ne peut pas dépasser `amount`. Le SDK valide cela avant l'appel API.
+> **Validation SDK :** `isvAmount` ne peut pas dépasser `amount`. Le SDK lance une `InvalidArgumentException` avant l'appel API.
+
+---
 
 ## Transactions ISV (Composite Auth)
 
-Toutes les opérations sur les transactions des marchands connectés utilisent le Composite Basic Auth automatiquement.
+Toutes les opérations sur les transactions des marchands connectés utilisent le **Composite Basic Auth** automatiquement.
 
 ```php
 // Détails d'une transaction
@@ -114,7 +162,11 @@ $isv->transactions->cancel('txn-uuid', 'merchant-uuid');
 $isv->transactions->cancel('txn-uuid', 'merchant-uuid', amount: 500);
 ```
 
-## POS Terminal (Cloud Terminal API ISV)
+> **Prérequis :** "Allow recurring payments and pre-auth captures via API" doit être activé dans Settings > API Access.
+
+---
+
+## POS Terminal (Cloud Terminal)
 
 ```php
 // Rechercher les terminaux
@@ -123,8 +175,8 @@ $devices = $isv->terminals->search(merchantId: 'merchant-uuid');
 // Envoyer une vente au terminal
 $session = $isv->terminals->sale(
     terminalId: 16014231,
-    amount: 100,                         // €1.00
-    isvAmount: 10,                       // €0.10 commission
+    amount: 100,                         // 1,00 €
+    isvAmount: 10,                       // 0,10 € commission
     terminalMerchantId: 'merchant-uuid',
     cashRegisterId: 'CR-01',
     merchantReference: 'sale_456',
@@ -134,7 +186,6 @@ echo $session['session_id']; // UUID de la session
 
 // Polling manuel
 $result = $isv->terminals->getSession($session['session_id']);
-// success: false, eventId: 1100 = encore en cours
 
 // Polling automatique (attend le résultat ou timeout)
 $result = $isv->terminals->pollUntilComplete(
@@ -158,58 +209,98 @@ $isv->terminals->abort($sessionId, cashRegisterId: 'CR-01');
 
 | eventId | Signification | Action |
 |---------|--------------|--------|
-| 0 | Succès | Transaction complétée |
-| 1003 | Terminal timeout | Réessayer |
-| 1006 | Refusée | Afficher erreur |
-| 1016 | Annulée (abort) | Confirmer annulation |
-| 1020 | Fonds insuffisants | Afficher message |
-| 1099 | Erreur générique | Réessayer ou escalader |
-| 1100 | En cours | Continuer à poller |
-| 6000 | Paramètres incorrects | Corriger la requête |
+| `0` | Succès | Transaction complétée |
+| `1003` | Terminal timeout | Réessayer |
+| `1006` | Refusée | Afficher erreur |
+| `1016` | Annulée (abort) | Confirmer annulation |
+| `1020` | Fonds insuffisants | Afficher message |
+| `1099` | Erreur générique | Réessayer ou escalader |
+| `1100` | En cours | Continuer à poller |
+| `6000` | Paramètres incorrects | Corriger la requête |
 
-> **Preauth ISV via Cloud Terminal n'est PAS supporté** par Viva. Le terminal retourne `eventId: 6000` "ISV preauth transactions are not supported". Utiliser Smart Checkout à la place.
+> **Preauth ISV via Cloud Terminal n'est PAS supporté** par Viva. Le terminal retourne `eventId: 6000`. Utiliser Smart Checkout à la place.
+
+---
 
 ## Webhooks
 
 ```php
-// Vérification (GET)
-$response = $isv->webhooks->verificationResponse('your-key');
+// Vérification (GET) — répondre à la requête de validation Viva
+$response = $isv->webhooks->verificationResponse('your-verification-key');
+// => ['StatusCode' => 0, 'Key' => 'your-verification-key']
 
 // Parser un événement (POST)
 $event = $isv->webhooks->parse($request->getContent());
 // => ['event_type' => 'transaction.payment.created', 'event_data' => [...]]
 ```
 
-## Enums Utiles
+### Événements supportés
+
+| EventTypeId | event_type |
+|-------------|-----------|
+| 1796 | `transaction.payment.created` |
+| 1797 | `transaction.refund.created` |
+| 1798 | `transaction.payment.cancelled` |
+| 1799 | `transaction.reversal.created` |
+| 1800 | `transaction.preauth.created` |
+| 1801 | `transaction.preauth.completed` |
+| 1802 | `transaction.preauth.cancelled` |
+| 1810 | `pos.session.created` |
+| 1811 | `pos.session.failed` |
+
+---
+
+## Enums utiles
 
 ```php
 use QrCommunication\VivaIsv\Enums\EcrEventId;
 use QrCommunication\VivaIsv\Enums\TransactionEventId;
 
+// Cloud Terminal events
 $event = EcrEventId::from(1100);
 $event->shouldPoll();  // true
 $event->isTerminal();  // false
+$event->label();       // 'In progress'
 
+// Transaction decline codes
 $decline = TransactionEventId::from(10051);
 $decline->label();      // 'Insufficient funds'
-$decline->testAmount(); // 9951 (montant qui déclenche ce déclin en demo)
+$decline->testAmount(); // 9951 (montant en centimes qui déclenche ce déclin en demo)
 ```
 
-## Gestion des Erreurs
+---
+
+## Gestion des erreurs
 
 ```php
 use QrCommunication\VivaIsv\Exceptions\AuthenticationException;
 use QrCommunication\VivaIsv\Exceptions\ApiException;
+use QrCommunication\VivaIsv\Exceptions\VivaException;
 
 try {
     $order = $isv->orders->create(...);
 } catch (AuthenticationException $e) {
-    // Credentials ISV invalides
+    // Credentials ISV invalides (401)
+    echo "Auth failed: {$e->getMessage()}";
 } catch (ApiException $e) {
+    // Erreur API Viva
     echo "Error [{$e->httpStatus}]: {$e->getMessage()}";
     echo "Viva error code: {$e->getErrorCode()}";
+    echo "Viva error text: {$e->getErrorText()}";
+} catch (VivaException $e) {
+    // Exception de base (toutes héritent de celle-ci)
 }
 ```
+
+### Hiérarchie des exceptions
+
+```
+VivaException (RuntimeException)
+├── AuthenticationException  — OAuth2 / credentials invalides (401)
+└── ApiException             — Erreur API générale (4xx, 5xx)
+```
+
+---
 
 ## Architecture
 
@@ -224,23 +315,77 @@ VivaIsvClient (point d'entrée)
 
 ### Les 3 Auth du SDK
 
-| Auth | Méthode | Quand |
-|------|---------|-------|
-| Bearer ISV OAuth | `HttpClient::post/get/delete` | Comptes, ordres, terminaux |
-| Basic Auth ISV | `HttpClient::legacyPost/Get` | Propre compte Legacy API |
-| Composite Basic Auth | `HttpClient::compositePost/Get/Delete` | Transactions marchands connectés |
+| Auth | Méthode HTTP | Quand |
+|------|-------------|-------|
+| **Bearer ISV OAuth** | `Authorization: Bearer {token}` | Comptes, ordres, terminaux |
+| **Basic Auth ISV** | `Authorization: Basic {merchantId:apiKey}` | Propre compte Legacy API |
+| **Composite Basic Auth** | `Authorization: Basic {resellerId:merchantId / resellerApiKey}` | Transactions marchands connectés |
 
-## Pièges Connus
+### Structure du code
+
+```
+src/
+├── VivaIsvClient.php          # Point d'entrée, expose les 5 modules
+├── IsvConfig.php              # Configuration (3 jeux de credentials + URLs)
+├── HttpClient.php             # Client HTTP avec 3 modes d'auth + token cache
+├── Enums/
+│   ├── Environment.php        # DEMO / PRODUCTION (URLs par env)
+│   ├── EcrEventId.php         # Event IDs Cloud Terminal (8 cas)
+│   └── TransactionEventId.php # Codes de déclin (20 cas + testAmount)
+├── Exceptions/
+│   ├── VivaException.php      # Exception de base (httpStatus, responseBody)
+│   ├── ApiException.php       # Erreur API
+│   └── AuthenticationException.php  # Échec OAuth2 (401)
+└── Resources/
+    ├── ConnectedAccounts.php  # CRUD comptes marchands
+    ├── IsvOrders.php          # Smart Checkout avec commission
+    ├── IsvTransactions.php    # Capture, recurring, cancel (Composite Auth)
+    ├── EcrTerminals.php       # POS terminal (sale, poll, abort)
+    └── Webhooks.php           # Vérification + parsing événements
+```
+
+---
+
+## Documentation API
+
+La spécification OpenAPI complète est disponible dans [`openapi.yaml`](openapi.yaml).
+
+### Consulter la documentation interactive
+
+Ouvrez [`docs/index.html`](docs/index.html) dans un navigateur pour accéder à la documentation **ReDoc** interactive avec :
+
+- Tous les endpoints documentés avec exemples
+- Schémas de requête/réponse détaillés
+- Les 3 mécanismes d'authentification expliqués
+- Codes d'erreur et événements webhook
+
+Vous pouvez aussi utiliser n'importe quel outil compatible OpenAPI :
+
+```bash
+# Swagger UI via Docker
+docker run -p 8080:8080 -e SWAGGER_JSON=/spec/openapi.yaml -v $(pwd):/spec swaggerapi/swagger-ui
+
+# Redocly CLI
+npx @redocly/cli preview-docs openapi.yaml
+```
+
+---
+
+## Pièges connus
 
 1. **Bearer token sur Legacy API** → 401. L'API legacy n'accepte QUE Basic Auth.
-2. **ISV Basic Auth + transaction marchand** → "api action disabled". Il faut le Composite Auth.
-3. **Connected merchant Basic Auth + IsvAmount** → `PaymentsRecurringIsvMissingReseller`.
-4. **`isvAmount > amount`** → Rejeté par l'API.
+2. **ISV Basic Auth + transaction marchand** → `"api action disabled"`. Il faut le Composite Auth.
+3. **Connected merchant Basic Auth + IsvAmount** → `PaymentsRecurringIsvMissingReseller`. Le Composite Auth est obligatoire.
+4. **`isvAmount > amount`** → Rejeté par l'API. Le SDK valide cela côté client.
 5. **`scope=isv` dans le token** → `invalid_scope`. Ne pas envoyer de scope explicite.
-6. **Preauth ISV Cloud Terminal** → `eventId: 6000`. Utiliser Smart Checkout.
-7. **Capture preauth** nécessite "Allow recurring payments and pre-auth captures via API" activé.
+6. **Preauth ISV Cloud Terminal** → `eventId: 6000`. Utiliser Smart Checkout à la place.
+7. **Capture preauth** nécessite "Allow recurring payments and pre-auth captures via API" activé dans les Settings.
 
-## Carte de Test
+---
+
+## Tests
+
+### Carte de test
 
 | Champ | Valeur |
 |-------|--------|
@@ -249,16 +394,36 @@ VivaIsvClient (point d'entrée)
 | Expiration | N'importe quelle date future |
 | 3DS password | `Secret!33` |
 
-## Montants de Test (Déclin)
+### Montants de test (déclenchent un déclin en démo)
 
-| Cents | EventId | Description |
-|-------|---------|-------------|
-| 9951 | 10051 | Insufficient funds |
-| 9954 | 10054 | Expired card |
-| 9920 | 10200 | Stolen card |
-| 9957 | 10057 | Card not permitted |
-| 9961 | 10061 | Withdrawal limit |
+| Centimes | EventId | Description |
+|----------|---------|-------------|
+| `9951` | 10051 | Insufficient funds |
+| `9954` | 10054 | Expired card |
+| `9920` | 10200 | Stolen card |
+| `9957` | 10057 | Card not permitted |
+| `9961` | 10061 | Withdrawal limit |
+| `9906` | 10006 | General error |
+| `9914` | 10014 | Invalid card |
+
+### Lancer les tests
+
+```bash
+composer test
+```
+
+---
 
 ## Licence
 
-MIT
+[MIT](LICENSE)
+
+---
+
+<p align="center">
+  Développé par <a href="https://qrcommunication.com"><strong>QrCommunication</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://qrcommunication.com">https://qrcommunication.com</a>
+</p>

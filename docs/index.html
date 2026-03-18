@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Viva Wallet ISV SDK — API Documentation</title>
+    <meta name="description" content="Documentation interactive de l'API Viva Wallet ISV Partner SDK — comptes connectés, ordres, transactions, Cloud Terminal POS." />
+
+    <!-- ReDoc -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+    <redoc
+        spec-url="../openapi.yaml"
+        hide-hostname
+        theme='{
+            "colors": {
+                "primary": { "main": "#0052FF" },
+                "success": { "main": "#00C853" },
+                "warning": { "main": "#FF9100" },
+                "error": { "main": "#FF1744" },
+                "text": { "primary": "#1a1a2e" }
+            },
+            "typography": {
+                "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+                "fontSize": "15px",
+                "headings": { "fontFamily": "Inter, sans-serif", "fontWeight": "700" },
+                "code": { "fontFamily": "JetBrains Mono, Fira Code, monospace", "fontSize": "13px" }
+            },
+            "sidebar": {
+                "width": "280px",
+                "backgroundColor": "#fafbfc",
+                "textColor": "#1a1a2e"
+            },
+            "rightPanel": {
+                "backgroundColor": "#1a1a2e"
+            },
+            "schema": {
+                "typeTitleColor": "#0052FF"
+            }
+        }'
+    ></redoc>
+
+    <script src="https://cdn.redoc.ly/redoc/v2.4.0/bundles/redoc.standalone.js"></script>
+</body>
+</html>
