@@ -4,7 +4,7 @@ You are working on the `qrcommunication/viva-isv-sdk` PHP package — a Viva Wal
 
 1. **Three auth modes**: Bearer (ISV OAuth), Basic Auth (own merchant), Composite Basic Auth (connected merchants).
 2. **Composite Basic Auth** (undocumented by Viva): Username = `{ResellerID}:{ConnectedMerchantID}`, Password = `{ResellerAPIKey}`.
-3. **All amounts are in cents** (int). €15.00 = 1500.
+3. **All amounts are in cents** (int). 15.00 EUR = 1500.
 4. **ISV orders**: POST `/checkout/v2/isv/orders?MerchantId={uuid}` — camelCase, NO sourceCode.
 5. **ISV transactions** (capture, recurring, cancel): Legacy API with Composite Basic Auth — PascalCase params.
 6. **ISV POS terminal**: `/ecr/isv/v1/transactions:sale` — Bearer token. Preauth NOT supported (use Smart Checkout).
@@ -13,26 +13,35 @@ You are working on the `qrcommunication/viva-isv-sdk` PHP package — a Viva Wal
 9. **connectedMerchantId is always explicit** — no global state.
 10. **Exceptions**: `ApiException` (4xx/5xx), `AuthenticationException` (401).
 11. **PHP 8.2+ strict types**, PSR-4 namespace `QrCommunication\VivaIsv\`.
+12. **Native Checkout ISV**: `/nativecheckout/v2/isv/` — Bearer token, charge tokens + transactions.
+13. **ISV Webhooks**: `/isv/v1/webhooks` — Bearer token, CRUD webhook management.
+14. **ISV Accounts**: `/isv/v1/accounts` — Bearer token, ISV-specific account management.
+15. **21 webhook events** supported — use `Webhooks::EVENTS` constant or `Webhooks::isKnownEvent()`.
 
 ## File Structure
 
-- `src/VivaIsvClient.php` — Entry point, exposes 5 resources
-- `src/HttpClient.php` — Guzzle wrapper with 3 auth modes (Bearer, Basic, Composite)
+- `src/VivaIsvClient.php` — Entry point, exposes 10 resources
+- `src/HttpClient.php` — Guzzle wrapper with 3 auth modes (Bearer, Basic, Composite) + PUT support
 - `src/IsvConfig.php` — 3 credential sets + environment URLs + compositeUsername()
-- `src/Resources/ConnectedAccounts.php` — /platforms/v1/accounts
+- `src/Resources/ConnectedAccounts.php` — /platforms/v1/accounts (create, get, list, update, delete)
+- `src/Resources/IsvAccounts.php` — /isv/v1/accounts (create, get, list)
 - `src/Resources/IsvOrders.php` — /checkout/v2/isv/orders (with isvAmount validation)
 - `src/Resources/IsvTransactions.php` — Legacy API with Composite Basic Auth
 - `src/Resources/EcrTerminals.php` — /ecr/isv/v1/ (sale, poll, abort, search)
-- `src/Resources/Webhooks.php` — Verification + event parsing
+- `src/Resources/Transfers.php` — /platforms/v1/transfers (send, reverse)
+- `src/Resources/MarketplaceOrders.php` — /checkout/v2/orders/ (create, cancel)
+- `src/Resources/NativeCheckoutIsv.php` — /nativecheckout/v2/isv/ (chargetokens, transactions)
+- `src/Resources/IsvWebhooks.php` — /isv/v1/webhooks (create, list, update, delete)
+- `src/Resources/Webhooks.php` — Verification + event parsing (21 events, EVENTS constant, isKnownEvent)
 - `src/Enums/EcrEventId.php` — Cloud Terminal event IDs with shouldPoll()/isTerminal()
 - `src/Enums/TransactionEventId.php` — Decline codes with testAmount()
 
 ## Critical Pitfalls
 
-- Bearer token on Legacy API → 401 (use Basic Auth)
-- ISV Basic Auth on connected merchant transaction → "api action disabled" (use Composite)
-- Connected merchant Basic Auth + IsvAmount → PaymentsRecurringIsvMissingReseller
-- Preauth ISV via Cloud Terminal → eventId 6000 (use Smart Checkout instead)
+- Bearer token on Legacy API -> 401 (use Basic Auth)
+- ISV Basic Auth on connected merchant transaction -> "api action disabled" (use Composite)
+- Connected merchant Basic Auth + IsvAmount -> PaymentsRecurringIsvMissingReseller
+- Preauth ISV via Cloud Terminal -> eventId 6000 (use Smart Checkout instead)
 
 ## Test Card
 

@@ -1,98 +1,44 @@
 openapi: 3.1.0
-
 info:
-  title: Viva Wallet ISV Partner API
-  version: 1.3.0
+  title: Viva Wallet ISV SDK API
+  version: 1.3.5
   description: |
-    SDK PHP `qrcommunication/viva-isv-sdk` pour l'API **Viva Wallet ISV Partner**.
-
-    Ce SDK couvre l'ensemble des opérations ISV : comptes connectés, ordres Smart Checkout avec commission,
-    transactions via Composite Auth, Cloud Terminal POS, transferts marketplace et webhooks.
-
-    ---
+    SDK PHP pour l'API **Viva Wallet ISV Partner** — comptes connectes, ordres ISV avec commission, transactions via Composite Auth, Cloud Terminal POS, transferts marketplace, Native Checkout ISV, webhooks ISV et parsing.
 
     ## Authentification
 
-    Le SDK gère **3 mecanismes d'authentification** distincts :
+    Le SDK gere **4 schemas d'authentification** :
 
-    | Type | Methode | Usage |
-    |------|---------|-------|
-    | **ISV OAuth2** | Bearer token (`client_credentials`) | New API (comptes, ordres, terminaux, transferts, marketplace) |
-    | **ISV Basic Auth** | `merchantId:apiKey` | Legacy API (propre compte) |
-    | **Composite Basic Auth** | `resellerId:connectedMerchantId / resellerApiKey` | Legacy API (marchands connectes) |
+    | Type | Credentials | Format HTTP | Utilise pour |
+    |------|-------------|-------------|-------------|
+    | **ISV OAuth2 (Bearer)** | `clientId` + `clientSecret` | `Authorization: Bearer {token}` | New API — comptes, ordres ISV, terminaux, transferts, marketplace, native checkout, webhooks ISV |
+    | **ISV Basic Auth** | `merchantId` + `apiKey` | `Authorization: Basic {merchantId:apiKey}` | Legacy API — propre compte ISV |
+    | **Composite Basic Auth** | `resellerId` + `resellerApiKey` | `Authorization: Basic {compositeUsername:resellerApiKey}` | Legacy API — transactions des marchands connectes |
+    | **ISV OAuth (token request)** | `clientId` + `clientSecret` | Form POST Basic Auth | `/connect/token` uniquement |
 
     ### Composite Basic Auth (NON DOCUMENTE par Viva Wallet)
-
-    Ce mecanisme a ete decouvert empiriquement lors de la certification ISV.
-    Il est **obligatoire** pour toutes les operations sur les transactions des marchands connectes.
 
     ```
     Username: {ResellerID}:{ConnectedMerchantID}   (deux UUIDs separes par :)
     Password: {ResellerAPIKey}
     ```
 
-    **Erreurs courantes sans Composite Auth :**
-    - Bearer token sur Legacy API -> `401 Unauthorized`
-    - ISV Basic Auth sur transaction marchand -> `"api action disabled"`
-    - Connected merchant Basic Auth + IsvAmount -> `PaymentsRecurringIsvMissingReseller`
-
-    ---
+    Decouvert empiriquement lors de la certification ISV. La documentation officielle Viva Wallet ne specifie pas ce format.
 
     ## Les 3 Hosts API
 
-    | Host | Auth | Convention params | Endpoints |
-    |------|------|-------------------|-----------|
-    | `accounts.vivapayments.com` | Form POST (clientId:clientSecret) | -- | `/connect/token` uniquement |
-    | `api.vivapayments.com` | Bearer token | **camelCase** | `/checkout/v2/isv/`, `/checkout/v2/orders/`, `/ecr/isv/v1/`, `/platforms/v1/` |
-    | `www.vivapayments.com` | Basic Auth / Composite | **PascalCase** | `/api/orders`, `/api/transactions` |
-
-    > **CRITIQUE** : ne jamais melanger les casses. Legacy = PascalCase, New = camelCase.
-
-    ---
+    | Host | Auth | Convention | Endpoints |
+    |------|------|------------|-----------|
+    | `accounts.vivapayments.com` | Form POST | — | `/connect/token` |
+    | `api.vivapayments.com` | Bearer token | **camelCase** | `/checkout/v2/isv/`, `/checkout/v2/orders/`, `/ecr/isv/v1/`, `/platforms/v1/`, `/isv/v1/`, `/nativecheckout/v2/isv/` |
+    | `www.vivapayments.com` | Basic/Composite | **PascalCase** | `/api/orders`, `/api/transactions` |
 
     ## Environnements
 
-    | Environnement | Accounts URL | API URL | Legacy URL |
-    |---------------|-------------|---------|------------|
-    | Demo | `https://demo-accounts.vivapayments.com` | `https://demo-api.vivapayments.com` | `https://demo.vivapayments.com` |
-    | Production | `https://accounts.vivapayments.com` | `https://api.vivapayments.com` | `https://www.vivapayments.com` |
-
-    ---
-
-    ## Carte de test (Demo)
-
-    | Champ | Valeur |
-    |-------|--------|
-    | Numero | `4111111111111111` |
-    | CVV | `111` |
-    | Expiration | N'importe quelle date future |
-    | 3DS password | `Secret!33` |
-
-    ### Montants de declin (centimes)
-
-    | Centimes | TransactionEventId | Description |
-    |----------|-------------------|-------------|
-    | `9951` | 10051 | Insufficient funds |
-    | `9954` | 10054 | Expired card |
-    | `9920` | 10200 | Stolen card |
-    | `9957` | 10057 | Card not permitted |
-    | `9961` | 10061 | Withdrawal limit |
-    | `9906` | 10006 | General error |
-    | `9914` | 10014 | Invalid card |
-
-    ---
-
-    ## Pieges decouverts lors de la certification ISV
-
-    1. **Bearer token sur Legacy API** -> 401. L'API legacy n'accepte QUE Basic Auth.
-    2. **ISV Basic Auth + transaction marchand connecte** -> `"api action disabled"`. Il faut le Composite Auth.
-    3. **Connected merchant Basic Auth + IsvAmount** -> `PaymentsRecurringIsvMissingReseller`. Le contexte reseller est manquant.
-    4. **`isvAmount > amount`** -> Rejete par l'API. Le SDK valide cote client (`InvalidArgumentException`).
-    5. **`scope=isv` dans le token** -> `invalid_scope`. Ne PAS envoyer de scope explicite.
-    6. **Preauth ISV via Cloud Terminal** -> `eventId: 6000` "ISV preauth transactions are not supported". Utiliser Smart Checkout.
-    7. **Capture preauth** necessite "Allow recurring payments and pre-auth captures via API" active dans Settings > API Access.
-    8. **Abort ECR** utilise GET (pas DELETE) avec `cashRegisterId` en query param.
-    9. **Ordres ISV** : NE PAS envoyer `sourceCode` — le connected merchant utilise sa source par defaut.
+    | Env | Accounts | API | Legacy |
+    |-----|----------|-----|--------|
+    | demo | `demo-accounts.vivapayments.com` | `demo-api.vivapayments.com` | `demo.vivapayments.com` |
+    | production | `accounts.vivapayments.com` | `api.vivapayments.com` | `www.vivapayments.com` |
   contact:
     name: QrCommunication
     email: contact@qrcommunication.com
@@ -102,403 +48,872 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: https://demo-api.vivapayments.com
-    description: Demo — New API (Bearer)
   - url: https://api.vivapayments.com
-    description: Production — New API (Bearer)
-  - url: https://demo.vivapayments.com
-    description: Demo — Legacy API (Basic/Composite Auth)
+    description: Production (New API — Bearer token)
+  - url: https://demo-api.vivapayments.com
+    description: Demo/Sandbox (New API — Bearer token)
   - url: https://www.vivapayments.com
-    description: Production — Legacy API (Basic/Composite Auth)
-  - url: https://demo-accounts.vivapayments.com
-    description: Demo — Accounts/OAuth
-  - url: https://accounts.vivapayments.com
-    description: Production — Accounts/OAuth
+    description: Production (Legacy API — Basic/Composite Auth)
+  - url: https://demo.vivapayments.com
+    description: Demo/Sandbox (Legacy API — Basic/Composite Auth)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: OAuth2
+      description: |
+        ISV OAuth2 Bearer token obtenu via POST /connect/token sur accounts.vivapayments.com.
+        Utilise pour toutes les operations New API (comptes, ordres ISV, terminaux, transferts, marketplace, native checkout, webhooks ISV).
+
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        ISV Merchant Basic Auth. Username = MerchantID, Password = APIKey.
+        Utilise pour les operations Legacy API sur le propre compte ISV.
+
+    CompositeBasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        **Composite Basic Auth (NON DOCUMENTE par Viva Wallet).**
+
+        Username = `{ResellerID}:{ConnectedMerchantID}` (deux UUIDs separes par `:`)
+        Password = `{ResellerAPIKey}`
+
+        Utilise pour les operations Legacy API sur les transactions des marchands connectes
+        (capture preauth, recurring charge, cancel/refund, get transaction).
+
+        Ce format a ete decouvert empiriquement lors de la certification ISV.
+
+    IsvOAuth:
+      type: oauth2
+      description: ISV OAuth2 — token request via client_credentials
+      flows:
+        clientCredentials:
+          tokenUrl: https://accounts.vivapayments.com/connect/token
+          scopes: {}
+
+  schemas:
+    ConnectedAccountCreate:
+      type: object
+      required: [email, returnUrl]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Adresse email du marchand
+        returnUrl:
+          type: string
+          format: uri
+          description: URL de redirection apres onboarding KYB
+        branding:
+          type: object
+          properties:
+            partnerName:
+              type: string
+              description: Nom de la plateforme ISV
+            logoUrl:
+              type: string
+              format: uri
+              description: Logo de la plateforme ISV
+
+    ConnectedAccountResponse:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+          description: UUID du compte connecte
+        verificationStatus:
+          type: string
+          enum: [Pending, Verified, Active, Rejected]
+          description: Statut de verification KYB
+        merchantId:
+          type: string
+          format: uuid
+          description: UUID marchand (disponible apres verification)
+        invitation:
+          type: object
+          properties:
+            redirectUrl:
+              type: string
+              format: uri
+              description: URL d'onboarding KYB
+
+    IsvAccountCreate:
+      type: object
+      required: [email, returnUrl]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Adresse email du marchand
+        returnUrl:
+          type: string
+          format: uri
+          description: URL de redirection apres onboarding
+        branding:
+          type: object
+          properties:
+            partnerName:
+              type: string
+              description: Nom de la plateforme ISV
+            primaryColor:
+              type: string
+              description: Couleur hex pour le branding
+            logoUrl:
+              type: string
+              format: uri
+              description: Logo de la plateforme ISV
+
+    IsvAccountResponse:
+      type: object
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        verificationStatus:
+          type: string
+          enum: [Pending, Verified, Active, Rejected]
+        merchantId:
+          type: string
+          format: uuid
+        invitation:
+          type: object
+          properties:
+            redirectUrl:
+              type: string
+              format: uri
+
+    IsvOrderCreate:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+          description: Montant total en centimes
+          example: 1500
+        isvAmount:
+          type: integer
+          description: Commission ISV en centimes (doit etre <= amount)
+          example: 100
+        customerTrns:
+          type: string
+          description: Description visible par le client
+        merchantTrns:
+          type: string
+          description: Reference interne
+        allowRecurring:
+          type: boolean
+          default: false
+          description: Tokeniser la carte pour recurring
+        preauth:
+          type: boolean
+          default: false
+          description: Pre-autorisation uniquement
+
+    IsvOrderResponse:
+      type: object
+      properties:
+        orderCode:
+          type: integer
+          description: Code de l'ordre Viva
+          example: 1234567890
+
+    TransactionDetails:
+      type: object
+      properties:
+        TransactionId:
+          type: string
+          format: uuid
+        StatusId:
+          type: string
+        Amount:
+          type: number
+          description: Montant en EUR
+        Created:
+          type: string
+          format: date-time
+
+    CaptureRequest:
+      type: object
+      required: [Amount]
+      properties:
+        Amount:
+          type: integer
+          description: Montant en centimes (PascalCase — Legacy API)
+          example: 1500
+        IsvAmount:
+          type: integer
+          description: Commission ISV en centimes
+          example: 100
+
+    RecurringRequest:
+      type: object
+      required: [Amount]
+      properties:
+        Amount:
+          type: integer
+          description: Montant en centimes
+        IsvAmount:
+          type: integer
+          description: Commission ISV en centimes
+        SourceCode:
+          type: string
+          description: Code source de paiement
+
+    EcrSaleRequest:
+      type: object
+      required: [sessionId, terminalId, cashRegisterId, amount, currencyCode, isvDetails]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          description: UUID de la session (auto-genere si null)
+        terminalId:
+          type: integer
+          description: Terminal TID
+          example: 16014231
+        cashRegisterId:
+          type: string
+          description: Identifiant ECR
+          example: SDK-CR1
+        amount:
+          type: integer
+          description: Montant en centimes
+        currencyCode:
+          type: integer
+          description: ISO 4217 numerique (978 = EUR)
+          default: 978
+        merchantReference:
+          type: string
+          description: Reference interne
+        tipAmount:
+          type: integer
+          default: 0
+        isvDetails:
+          type: object
+          required: [amount, terminalMerchantId]
+          properties:
+            amount:
+              type: integer
+              description: Commission ISV en centimes
+            terminalMerchantId:
+              type: string
+              format: uuid
+              description: UUID du marchand proprietaire du terminal
+
+    EcrSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        eventId:
+          type: integer
+          description: Code evenement ECR (voir EcrEventId)
+        transactionId:
+          type: string
+          format: uuid
+
+    DeviceSearchRequest:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        statusId:
+          type: integer
+        sourceCode:
+          type: string
+
+    TransferRequest:
+      type: object
+      required: [targetAccountId, amount]
+      properties:
+        targetAccountId:
+          type: string
+          format: uuid
+          description: UUID du compte connecte cible
+        amount:
+          type: integer
+          description: Montant en centimes
+        sourceWalletId:
+          type: string
+          format: uuid
+          description: UUID du wallet source (plateforme)
+        transactionId:
+          type: string
+          format: uuid
+          description: Lier a une transaction existante
+        description:
+          type: string
+          description: Description du transfert
+
+    TransferResponse:
+      type: object
+      properties:
+        transferId:
+          type: string
+          format: uuid
+
+    MarketplaceOrderCreate:
+      type: object
+      required: [amount, transfer]
+      properties:
+        amount:
+          type: integer
+          description: Montant total en centimes
+        customerTrns:
+          type: string
+        merchantTrns:
+          type: string
+        sourceCode:
+          type: string
+        preauth:
+          type: boolean
+          default: false
+        transfer:
+          type: object
+          required: [targetAccountId, amount]
+          properties:
+            targetAccountId:
+              type: string
+              format: uuid
+              description: UUID du vendeur
+            amount:
+              type: integer
+              description: Montant a transferer au vendeur en centimes
+
+    NativeChargeTokenRequest:
+      type: object
+      required: [amount, paymentData, paymentMethodId]
+      properties:
+        amount:
+          type: integer
+          description: Montant en centimes
+          example: 1500
+        paymentData:
+          type: string
+          description: Donnees de paiement chiffrees depuis le SDK JS Viva
+        paymentMethodId:
+          type: integer
+          default: 10
+          description: ID methode de paiement (10 = carte)
+
+    NativeChargeTokenResponse:
+      type: object
+      properties:
+        chargeToken:
+          type: string
+          description: Token de charge a utiliser pour la transaction
+
+    NativeTransactionRequest:
+      type: object
+      required: [chargeToken, amount]
+      properties:
+        chargeToken:
+          type: string
+          description: Token obtenu via createChargeToken
+        amount:
+          type: integer
+          description: Montant en centimes
+        isvAmount:
+          type: integer
+          description: Commission ISV en centimes
+          default: 0
+        currencyCode:
+          type: integer
+          default: 978
+        merchantTrns:
+          type: string
+          description: Reference interne
+        customerTrns:
+          type: string
+          description: Description client
+        preauth:
+          type: boolean
+          default: false
+
+    NativeTransactionResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        statusId:
+          type: string
+
+    IsvWebhookCreate:
+      type: object
+      required: [url, eventType]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL de reception des notifications webhook
+        eventType:
+          type: string
+          description: Type d'evenement a ecouter
+        description:
+          type: string
+          description: Description du webhook
+
+    IsvWebhookResponse:
+      type: object
+      properties:
+        webhookId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        eventType:
+          type: string
+        description:
+          type: string
+
+    IsvWebhookUpdate:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Nouvelle URL
+        eventType:
+          type: string
+          description: Nouveau type d'evenement
+
+    WebhookPayload:
+      type: object
+      properties:
+        EventTypeId:
+          type: integer
+          description: ID du type d'evenement (voir table des 21 evenements)
+          example: 1796
+        EventData:
+          type: object
+          description: Donnees de l'evenement
+
+    WebhookVerificationResponse:
+      type: object
+      properties:
+        StatusCode:
+          type: integer
+          example: 0
+        Key:
+          type: string
+          description: Cle de verification fournie par Viva
+
+    ErrorResponse:
+      type: object
+      properties:
+        ErrorCode:
+          type: integer
+        ErrorText:
+          type: string
+        message:
+          type: string
+        detail:
+          type: string
+
+    EcrEventId:
+      type: integer
+      description: |
+        Codes evenements Cloud Terminal.
+
+        | eventId | Nom | Description | `shouldPoll()` | `isTerminal()` |
+        |---------|-----|-------------|----------------|-----------------|
+        | 0 | SUCCESS | Transaction reussie | false | true |
+        | 1003 | TERMINAL_TIMEOUT | Terminal timeout | false | true |
+        | 1006 | DECLINED | Refusee par le serveur | false | true |
+        | 1016 | ABORTED | Annulee (abort reussi) | false | true |
+        | 1020 | INSUFFICIENT_FUNDS | Fonds insuffisants | false | true |
+        | 1099 | GENERIC_ERROR | Erreur generique | false | true |
+        | 1100 | IN_PROGRESS | En cours (poller) | **true** | false |
+        | 6000 | BAD_PARAMS | Parametres incorrects | false | true |
+      enum: [0, 1003, 1006, 1016, 1020, 1099, 1100, 6000]
+
+    TransactionEventId:
+      type: integer
+      description: |
+        Codes raison de declin.
+
+        | EventId | Nom | Description | testAmount |
+        |---------|-----|-------------|------------|
+        | 10001 | REFER_TO_ISSUER | Refer to issuer | 0 |
+        | 10003 | INVALID_MERCHANT | Invalid merchant | 0 |
+        | 10004 | PICKUP_CARD | Pickup card | 0 |
+        | 10005 | DO_NOT_HONOR | Do not honor | 0 |
+        | 10006 | GENERAL_ERROR | General error | 9906 |
+        | 10012 | INVALID_TRANSACTION | Invalid transaction | 0 |
+        | 10013 | INVALID_AMOUNT | Invalid amount | 0 |
+        | 10014 | INVALID_CARD | Invalid card | 9914 |
+        | 10030 | FORMAT_ERROR | Format error | 0 |
+        | 10041 | LOST_CARD | Lost card | 0 |
+        | 10043 | STOLEN_CARD | Stolen card | 9920 |
+        | 10051 | INSUFFICIENT_FUNDS | Insufficient funds | 9951 |
+        | 10054 | EXPIRED_CARD | Expired card | 9954 |
+        | 10055 | INCORRECT_PIN | Incorrect PIN | 0 |
+        | 10057 | NOT_PERMITTED_CARDHOLDER | Card not permitted | 9957 |
+        | 10058 | NOT_PERMITTED_TERMINAL | Not permitted terminal | 0 |
+        | 10061 | WITHDRAWAL_LIMIT | Withdrawal limit exceeded | 9961 |
+        | 10062 | RESTRICTED_CARD | Restricted card | 0 |
+        | 10063 | SECURITY_VIOLATION | Security violation | 0 |
+        | 10065 | ACTIVITY_LIMIT | Activity limit | 0 |
+        | 10068 | LATE_RESPONSE | Late response | 0 |
+        | 10070 | CALL_ISSUER | Call issuer | 0 |
+        | 10075 | PIN_TRIES_EXCEEDED | PIN tries exceeded | 0 |
+        | 10200 | UNMAPPED | Unmapped decline | 0 |
+      enum: [10001, 10003, 10004, 10005, 10006, 10012, 10013, 10014, 10030, 10041, 10043, 10051, 10054, 10055, 10057, 10058, 10061, 10062, 10063, 10065, 10068, 10070, 10075, 10200]
 
 tags:
-  - name: Authentication
-    description: |
-      OAuth2 token generation (ISV Bearer).
-
-      Le SDK gere automatiquement le caching et le renouvellement du token (expire_in - 60s de marge).
-      Vous n'avez normalement pas besoin d'appeler ce endpoint directement.
   - name: ConnectedAccounts
     description: |
-      Creation et gestion des comptes marchands connectes.
-
-      **Auth :** Bearer ISV OAuth (New API)
-      **Base URL :** `api.vivapayments.com`
-      **SDK :** `$isv->accounts`
+      Gestion des comptes marchands connectes via `/platforms/v1/accounts`.
+      Auth : Bearer ISV OAuth (New API).
+  - name: IsvAccounts
+    description: |
+      Gestion ISV-specifique des comptes via `/isv/v1/accounts`.
+      Auth : Bearer ISV OAuth (New API).
   - name: IsvOrders
     description: |
-      Ordres Smart Checkout avec commission ISV pour les marchands connectes.
-
-      **Auth :** Bearer ISV OAuth (New API)
-      **Base URL :** `api.vivapayments.com`
-      **SDK :** `$isv->orders`
-
-      > **Important :** NE PAS envoyer `sourceCode` — le connected merchant utilise sa source par defaut.
+      Ordres Smart Checkout avec commission ISV via `/checkout/v2/isv/orders`.
+      Auth : Bearer ISV OAuth (New API).
   - name: IsvTransactions
     description: |
-      Operations sur les transactions des marchands connectes : capture preauth, paiement recurrent, annulation/remboursement.
-
-      **Auth :** Composite Basic Auth (Legacy API)
-      **Base URL :** `www.vivapayments.com`
-      **SDK :** `$isv->transactions`
-
-      ### Composite Basic Auth
-
-      Ce mecanisme est **NON DOCUMENTE** par Viva Wallet. Il a ete decouvert empiriquement lors de la certification ISV.
-
-      ```
-      Username: {ResellerID}:{ConnectedMerchantID}
-      Password: {ResellerAPIKey}
-      ```
-
-      ### Prerequis
-
-      "Allow recurring payments and pre-auth captures via API" doit etre active dans ISV account Settings > API Access.
+      Operations sur les transactions des marchands connectes via l'API Legacy.
+      Auth : Composite Basic Auth.
+      **Prerequis** : "Allow recurring payments and pre-auth captures via API" active.
   - name: EcrTerminals
     description: |
-      Operations POS terminal via Cloud Terminal API ISV.
-
-      **Auth :** Bearer ISV OAuth (New API)
-      **Base URL :** `api.vivapayments.com`
-      **SDK :** `$isv->terminals`
-
-      Les endpoints ISV Cloud Terminal (`/ecr/isv/v1/`) different des endpoints marchands (`/ecr/v1/`) :
-      - Sale necessite `isvDetails` avec `amount` et `terminalMerchantId`
-      - Preauth est **NOT supported** via ISV Cloud Terminal (utiliser Smart Checkout)
-      - Abort utilise GET (pas DELETE) avec `cashRegisterId` en query param
-
-      ### EcrEventId (Cloud Terminal)
-
-      | eventId | Enum | Signification | shouldPoll | isTerminal |
-      |---------|------|---------------|------------|------------|
-      | 0 | SUCCESS | Transaction reussie | false | true |
-      | 1003 | TERMINAL_TIMEOUT | Terminal timeout | false | true |
-      | 1006 | DECLINED | Refusee par le serveur | false | true |
-      | 1016 | ABORTED | Annulee (abort reussi) | false | true |
-      | 1020 | INSUFFICIENT_FUNDS | Fonds insuffisants | false | true |
-      | 1099 | GENERIC_ERROR | Erreur generique | false | true |
-      | 1100 | IN_PROGRESS | En cours | **true** | false |
-      | 6000 | BAD_PARAMS | Parametres incorrects | false | true |
+      Cloud Terminal API ISV — POS terminal via `/ecr/isv/v1/`.
+      Auth : Bearer ISV OAuth (New API).
+      **Preauth ISV via Cloud Terminal n'est PAS supporte** — utiliser Smart Checkout.
   - name: Transfers
     description: |
-      Transferts de fonds vers les comptes connectes (marketplace).
-
-      **Auth :** Bearer ISV OAuth (New API)
-      **Base URL :** `api.vivapayments.com`
-      **SDK :** `$isv->transfers`
-
-      Permet d'envoyer des fonds vers un compte connecte (seller), optionnellement lie a une transaction existante.
+      Transferts de fonds vers les comptes connectes via `/platforms/v1/transfers`.
+      Auth : Bearer ISV OAuth (New API).
   - name: MarketplaceOrders
     description: |
-      Ordres de paiement marketplace avec transfert automatique vers le vendeur.
+      Ordres marketplace avec transfert automatique via `/checkout/v2/orders/`.
+      Auth : Bearer ISV OAuth (New API).
+  - name: NativeCheckoutIsv
+    description: |
+      Native Checkout ISV — charge tokens + transactions server-to-server via `/nativecheckout/v2/isv/`.
+      Auth : Bearer ISV OAuth (New API).
 
-      **Auth :** Bearer ISV OAuth (New API)
-      **Base URL :** `api.vivapayments.com`
-      **SDK :** `$isv->marketplace`
-
-      Le parametre `transfer` declenche la distribution automatique des fonds vers le compte vendeur connecte.
+      **Flux :**
+      1. Client collecte les donnees carte via SDK JS Viva -> paymentData chiffre
+      2. Serveur cree un charge token via `createChargeToken()`
+      3. Serveur execute la transaction via `createTransaction()`
+  - name: IsvWebhooks
+    description: |
+      Gestion des webhooks ISV via `/isv/v1/webhooks`.
+      Auth : Bearer ISV OAuth (New API).
+      CRUD complet : creer, lister, modifier, supprimer.
   - name: Webhooks
     description: |
       Verification et parsing des evenements webhook Viva Wallet.
+      Pas d'auth (cote serveur, reception des notifications).
 
-      **Auth :** Aucune
-      **SDK :** `$isv->webhooks`
+      **21 evenements supportes :**
 
-      Inclut les evenements ISV specifiques comme les sessions POS Cloud Terminal.
+      | EventTypeId | Nom | Description |
+      |-------------|-----|-------------|
+      | 1796 | transaction.payment.created | Paiement effectue |
+      | 1797 | transaction.refund.created | Remboursement effectue |
+      | 1798 | transaction.payment.cancelled | Paiement annule |
+      | 1799 | transaction.reversal.created | Reversal cree |
+      | 1800 | transaction.preauth.created | Pre-autorisation creee |
+      | 1801 | transaction.preauth.completed | Pre-autorisation capturee |
+      | 1802 | transaction.preauth.cancelled | Pre-autorisation annulee |
+      | 1810 | pos.session.created | Session POS creee |
+      | 1811 | pos.session.failed | Session POS echouee |
+      | 1812 | transaction.price.calculated | Prix calcule |
+      | 1813 | transaction.failed | Transaction echouee |
+      | 1819 | account.connected | Compte connecte |
+      | 1820 | account.verification.status.changed | Statut verification change |
+      | 1821 | account.transaction.created | Transaction compte creee |
+      | 1822 | command.bank.transfer.created | Virement bancaire cree |
+      | 1823 | command.bank.transfer.executed | Virement bancaire execute |
+      | 1824 | transfer.created | Transfert cree |
+      | 1825 | obligation.created | Obligation creee |
+      | 1826 | obligation.captured | Obligation capturee |
+      | 1827 | order.updated | Ordre mis a jour |
+      | 1828 | sale.transactions.file | Fichier transactions vente |
 
 paths:
-  # ==================== Authentication ====================
-
-  /connect/token:
-    post:
-      tags: [Authentication]
-      summary: Obtenir un Bearer token ISV
-      description: |
-        Genere un token OAuth2 via `client_credentials` grant.
-        Le SDK gere automatiquement le caching et le renouvellement du token (expire_in - 60s de marge).
-
-        **SDK :** Gestion automatique interne via `HttpClient::authenticate()`.
-        Appeler `$isv->invalidateToken()` pour forcer le renouvellement.
-      operationId: getToken
-      servers:
-        - url: https://demo-accounts.vivapayments.com
-          description: Demo
-        - url: https://accounts.vivapayments.com
-          description: Production
-      security:
-        - isvOAuth: []
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [grant_type]
-              properties:
-                grant_type:
-                  type: string
-                  enum: [client_credentials]
-                  description: Type de grant OAuth2
-                  example: client_credentials
-      responses:
-        '200':
-          description: Token obtenu avec succes
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenResponse'
-              example:
-                access_token: eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ2NDlCNjVFMDY1...
-                token_type: bearer
-                expires_in: 3600
-        '401':
-          description: Credentials invalides
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OAuthError'
-              example:
-                error: invalid_client
-                error_description: Client authentication failed
-
-  # ==================== Connected Accounts ====================
+  # ==================== ConnectedAccounts ====================
 
   /platforms/v1/accounts:
     post:
       tags: [ConnectedAccounts]
-      summary: Creer un compte marchand connecte
-      description: |
-        Cree un nouveau compte marchand sous la plateforme ISV.
-        Retourne un `accountId` et une URL de redirection vers le KYB onboarding Viva Wallet.
-
-        Le marchand recevra un email d'invitation avec un lien vers le processus KYB.
-        Une fois verifie, le compte pourra accepter des paiements via les ordres ISV.
-
-        **SDK :** `$isv->accounts->create(email, returnUrl, partnerName?, logoUrl?)`
+      summary: Creer un compte connecte
       operationId: createConnectedAccount
       security:
-        - bearer: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAccountRequest'
-            examples:
-              minimal:
-                summary: Creation minimale
-                value:
-                  email: merchant@example.com
-                  returnUrl: https://app.com/onboarding/complete
-              withBranding:
-                summary: Avec branding ISV
-                value:
-                  email: merchant@example.com
-                  returnUrl: https://app.com/onboarding/complete
-                  branding:
-                    partnerName: Ma Plateforme
-                    logoUrl: https://app.com/logo.png
+              $ref: '#/components/schemas/ConnectedAccountCreate'
+            example:
+              email: merchant@example.com
+              returnUrl: https://app.com/onboarding/complete
+              branding:
+                partnerName: Ma Plateforme
       responses:
         '200':
-          description: Compte cree avec succes
+          description: Compte connecte cree
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateAccountResponse'
+                $ref: '#/components/schemas/ConnectedAccountResponse'
               example:
-                accountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                accountId: a1b2c3d4-0000-0000-0000-000000000000
                 invitation:
-                  redirectUrl: https://demo.vivapayments.com/onboarding/a1b2c3d4
+                  redirectUrl: https://accounts.vivapayments.com/onboarding/...
+        '400':
+          description: Requete invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentification echouee
+
+    get:
+      tags: [ConnectedAccounts]
+      summary: Lister tous les comptes connectes
+      operationId: listConnectedAccounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Liste paginee des comptes connectes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectedAccountResponse'
+        '401':
+          description: Authentification echouee
 
   /platforms/v1/accounts/{accountId}:
     get:
       tags: [ConnectedAccounts]
       summary: Obtenir les details d'un compte connecte
-      description: |
-        Recupere les informations d'un compte marchand connecte, incluant le statut de verification KYB.
-
-        **SDK :**
-        - `$isv->accounts->get($accountId)` — donnees completes
-        - `$isv->accounts->isVerified($accountId)` — raccourci booleen (verifie `Verified` ou `Active`)
-        - `$isv->accounts->onboardingUrl($accountId)` — URL KYB si pas encore verifie
       operationId: getConnectedAccount
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/AccountId'
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID du compte connecte
       responses:
         '200':
           description: Details du compte
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountDetails'
-              examples:
-                verified:
-                  summary: Compte verifie
-                  value:
-                    accountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    email: merchant@example.com
-                    verificationStatus: Verified
-                    merchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-                    invitation:
-                      redirectUrl: null
-                pending:
-                  summary: Compte en attente KYB
-                  value:
-                    accountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    email: merchant@example.com
-                    verificationStatus: Pending
-                    merchantId: null
-                    invitation:
-                      redirectUrl: https://demo.vivapayments.com/onboarding/a1b2c3d4
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: '#/components/schemas/ConnectedAccountResponse'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Compte non trouve
 
     post:
       tags: [ConnectedAccounts]
       summary: Mettre a jour un compte connecte
-      description: |
-        Met a jour les attributs d'un compte marchand connecte.
-
-        **SDK :** `$isv->accounts->update($accountId, $attributes)`
-
-        > Note : L'API Viva utilise POST pour les mises a jour (pas PATCH).
       operationId: updateConnectedAccount
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/AccountId'
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAccountRequest'
-            example:
-              email: new-email@example.com
-              branding:
-                partnerName: Updated Platform Name
+              type: object
+              description: Attributs a mettre a jour
       responses:
         '200':
           description: Compte mis a jour
+        '404':
+          description: Compte non trouve
+
+    delete:
+      tags: [ConnectedAccounts]
+      summary: Supprimer/deconnecter un compte connecte
+      operationId: deleteConnectedAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Compte deconnecte
+        '404':
+          description: Compte non trouve
+
+  # ==================== IsvAccounts ====================
+
+  /isv/v1/accounts:
+    post:
+      tags: [IsvAccounts]
+      summary: Creer un compte ISV connecte
+      operationId: createIsvAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IsvAccountCreate'
+            example:
+              email: merchant@example.com
+              returnUrl: https://app.com/onboarding/complete
+              branding:
+                partnerName: Ma Plateforme
+                primaryColor: '#0052FF'
+      responses:
+        '200':
+          description: Compte ISV cree
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountDetails'
+                $ref: '#/components/schemas/IsvAccountResponse'
+        '400':
+          description: Requete invalide
         '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+          description: Authentification echouee
 
-  # ==================== ISV Orders (Smart Checkout) ====================
+    get:
+      tags: [IsvAccounts]
+      summary: Lister tous les comptes ISV
+      operationId: listIsvAccounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Liste des comptes ISV
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IsvAccountResponse'
+        '401':
+          description: Authentification echouee
+
+  /isv/v1/accounts/{accountId}:
+    get:
+      tags: [IsvAccounts]
+      summary: Obtenir un compte ISV
+      operationId: getIsvAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Details du compte ISV
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IsvAccountResponse'
+        '404':
+          description: Compte non trouve
+
+  # ==================== IsvOrders ====================
 
   /checkout/v2/isv/orders:
     post:
       tags: [IsvOrders]
       summary: Creer un ordre ISV (Smart Checkout)
-      description: |
-        Cree un ordre de paiement pour un marchand connecte avec commission ISV.
-        Retourne un `orderCode` et le SDK calcule la `checkout_url` vers la page Smart Checkout.
-
-        **Validations SDK :**
-        - `isvAmount` ne peut pas depasser `amount` (throws `InvalidArgumentException`)
-
-        **Important :**
-        - NE PAS envoyer `sourceCode` — le connected merchant utilise sa source par defaut
-        - Le `MerchantId` du marchand connecte est passe en query parameter
-
-        **SDK :** `$isv->orders->create(connectedMerchantId, amount, isvAmount?, ...)`
-
-        **Checkout URL :** `$isv->orders->checkoutUrl($orderCode)`
       operationId: createIsvOrder
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
         - name: MerchantId
           in: query
           required: true
-          description: UUID du marchand connecte
           schema:
             type: string
             format: uuid
-          example: m1e2r3c4-h5a6-n7t8-uuid-000000000000
+          description: UUID du marchand connecte
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateIsvOrderRequest'
-            examples:
-              simpleOrder:
-                summary: Ordre simple avec commission
-                value:
-                  amount: 1500
-                  isvAmount: 100
-                  customerTrns: Consultation
-              recurringOrder:
-                summary: Ordre avec tokenisation carte
-                value:
-                  amount: 1500
-                  isvAmount: 100
-                  customerTrns: Abonnement mensuel
-                  merchantTrns: sub_123
-                  allowRecurring: true
-              preauthOrder:
-                summary: Pre-autorisation
-                value:
-                  amount: 5000
-                  isvAmount: 250
-                  customerTrns: Reservation
-                  preauth: true
+              $ref: '#/components/schemas/IsvOrderCreate'
+            example:
+              amount: 1500
+              isvAmount: 100
+              customerTrns: Consultation
+              merchantTrns: session_123
       responses:
         '200':
-          description: Ordre cree avec succes
+          description: Ordre cree
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateOrderResponse'
+                $ref: '#/components/schemas/IsvOrderResponse'
               example:
                 orderCode: 1234567890
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Requete invalide. Causes courantes :
+            - `isvAmount > amount`
+            - `sourceCode` envoye (NE PAS envoyer pour les ordres ISV)
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Authentification echouee
 
-  # ==================== ISV Transactions (Composite Auth) ====================
+  # ==================== IsvTransactions ====================
 
   /api/transactions/{transactionId}:
     get:
       tags: [IsvTransactions]
-      summary: Details d'une transaction (marchand connecte)
-      description: |
-        Recupere les details d'une transaction pour un marchand connecte.
-
-        **Auth :** Composite Basic Auth
-        ```
-        Username: {ResellerID}:{ConnectedMerchantID}
-        Password: {ResellerAPIKey}
-        ```
-
-        **SDK :** `$isv->transactions->get($transactionId, $connectedMerchantId)`
+      summary: Obtenir les details d'une transaction
       operationId: getTransaction
-      servers:
-        - url: https://demo.vivapayments.com
-          description: Demo — Legacy API
-        - url: https://www.vivapayments.com
-          description: Production — Legacy API
       security:
-        - compositeAuth: []
+        - CompositeBasicAuth: []
       parameters:
-        - $ref: '#/components/parameters/TransactionId'
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Details de la transaction
@@ -506,177 +921,105 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransactionDetails'
-              example:
-                TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-                Amount: 15.00
-                StatusId: F
-                CurrencyCode: 978
-                Created: "2026-03-18T10:30:00.000Z"
-                MerchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-                SourceCode: Default
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Transaction non trouvee
 
     post:
       tags: [IsvTransactions]
-      summary: Capturer un preauth ou paiement recurrent
+      summary: Capturer un preauth ou charger un recurring
       description: |
-        Capture un paiement pre-autorise ou effectue un paiement recurrent sur un marchand connecte.
+        **Capture preauth** : POST avec `Amount` (+ `IsvAmount` optionnel).
+        **Recurring** : POST sur l'ID de la transaction initiale (token carte).
 
-        **Deux usages :**
-        - **Capture preauth :** le `transactionId` est l'UUID de la transaction pre-autorisee
-        - **Paiement recurrent :** le `transactionId` est l'UUID de la transaction initiale (token carte)
-
-        **Prerequis :** "Allow recurring payments and pre-auth captures via API" doit etre active
-        dans ISV account Settings > API Access.
-
-        **Auth :** Composite Basic Auth
-        ```
-        Username: {ResellerID}:{ConnectedMerchantID}
-        Password: {ResellerAPIKey}
-        ```
-
-        **Parametres PascalCase** (convention Legacy API).
-
-        **SDK :**
-        - `$isv->transactions->capture($transactionId, $connectedMerchantId, $amount, $isvAmount?)`
-        - `$isv->transactions->recurring($initialTransactionId, $connectedMerchantId, $amount, $isvAmount?, $sourceCode?)`
+        Les parametres sont en **PascalCase** (convention Legacy API).
       operationId: captureOrRecurring
-      servers:
-        - url: https://demo.vivapayments.com
-          description: Demo — Legacy API
-        - url: https://www.vivapayments.com
-          description: Production — Legacy API
       security:
-        - compositeAuth: []
+        - CompositeBasicAuth: []
       parameters:
-        - $ref: '#/components/parameters/TransactionId'
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la transaction (preauth ou initial pour recurring)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CaptureRecurringRequest'
-            examples:
-              capture:
-                summary: Capture preauth avec ISV fee
-                value:
-                  Amount: 1500
-                  IsvAmount: 100
-              recurring:
-                summary: Paiement recurrent
-                value:
-                  Amount: 1500
-                  IsvAmount: 100
-              recurringWithSource:
-                summary: Paiement recurrent avec source code
-                value:
-                  Amount: 1500
-                  IsvAmount: 100
-                  SourceCode: Default
+              $ref: '#/components/schemas/CaptureRequest'
+            example:
+              Amount: 1500
+              IsvAmount: 100
       responses:
         '200':
-          description: Operation reussie
+          description: Transaction capturee/chargee
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LegacyResponse'
-              example:
-                ErrorCode: 0
-                ErrorText: null
-                TimeStamp: "2026-03-18T10:30:00.000Z"
-                TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
+                type: object
+                properties:
+                  ErrorCode:
+                    type: integer
+                    example: 0
+                  ErrorText:
+                    type: string
+                  TransactionId:
+                    type: string
+                    format: uuid
         '400':
-          $ref: '#/components/responses/LegacyError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: |
+            Erreur. Causes courantes :
+            - `"api action disabled"` — mauvaise auth (utiliser Composite Auth)
+            - `PaymentsRecurringIsvMissingReseller` — contexte reseller manquant
 
     delete:
       tags: [IsvTransactions]
-      summary: Annuler ou rembourser une transaction
-      description: |
-        Annule (remboursement total) ou rembourse partiellement une transaction d'un marchand connecte.
-
-        - Sans `amount` -> remboursement total
-        - Avec `amount` -> remboursement partiel (en centimes)
-
-        **Auth :** Composite Basic Auth
-        ```
-        Username: {ResellerID}:{ConnectedMerchantID}
-        Password: {ResellerAPIKey}
-        ```
-
-        **SDK :** `$isv->transactions->cancel($transactionId, $connectedMerchantId, $amount?, $sourceCode?)`
+      summary: Annuler/rembourser une transaction
       operationId: cancelTransaction
-      servers:
-        - url: https://demo.vivapayments.com
-          description: Demo — Legacy API
-        - url: https://www.vivapayments.com
-          description: Production — Legacy API
       security:
-        - compositeAuth: []
+        - CompositeBasicAuth: []
       parameters:
-        - $ref: '#/components/parameters/TransactionId'
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - name: amount
           in: query
           required: false
-          description: Montant en centimes pour remboursement partiel (omis = remboursement total)
           schema:
             type: integer
-            minimum: 1
-          example: 500
+          description: Montant en centimes (null = remboursement total)
         - name: sourceCode
           in: query
           required: false
-          description: Code source de paiement
           schema:
             type: string
+          description: Code source de paiement
       responses:
         '200':
-          description: Annulation/remboursement reussi
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LegacyResponse'
-              example:
-                ErrorCode: 0
-                ErrorText: null
-                TimeStamp: "2026-03-18T10:30:00.000Z"
-                TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Transaction annulee/remboursee
+        '400':
+          description: Erreur
 
   /api/transactions:
     get:
       tags: [IsvTransactions]
       summary: Lister les transactions par date
-      description: |
-        Liste les transactions d'un marchand connecte pour une date donnee.
-
-        **Auth :** Composite Basic Auth
-
-        **SDK :** `$isv->transactions->listByDate($connectedMerchantId, $date)`
-
-        Le SDK retourne directement le tableau `Transactions` de la reponse.
-      operationId: listTransactions
-      servers:
-        - url: https://demo.vivapayments.com
-          description: Demo — Legacy API
-        - url: https://www.vivapayments.com
-          description: Production — Legacy API
+      operationId: listTransactionsByDate
       security:
-        - compositeAuth: []
+        - CompositeBasicAuth: []
       parameters:
         - name: date
           in: query
           required: true
-          description: Date au format Y-m-d
           schema:
             type: string
             format: date
-          example: "2026-03-18"
+          description: Date au format Y-m-d
       responses:
         '200':
           description: Liste des transactions
@@ -689,46 +1032,23 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/TransactionDetails'
-              example:
-                Transactions:
-                  - TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000001
-                    Amount: 15.00
-                    StatusId: F
-                    Created: "2026-03-18T09:00:00.000Z"
-                  - TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000002
-                    Amount: 25.00
-                    StatusId: F
-                    Created: "2026-03-18T14:30:00.000Z"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
-  # ==================== Cloud Terminal (ECR) ====================
+  # ==================== EcrTerminals ====================
 
   /ecr/isv/v1/devices:search:
     post:
       tags: [EcrTerminals]
       summary: Rechercher les terminaux POS
-      description: |
-        Recherche les terminaux POS (ECR) disponibles pour un marchand.
-        Tous les parametres sont optionnels — sans filtre, retourne tous les terminaux de la plateforme ISV.
-
-        **SDK :** `$isv->terminals->search(merchantId?, statusId?, sourceCode?)`
-      operationId: searchTerminals
+      operationId: searchDevices
       security:
-        - bearer: []
+        - BearerAuth: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SearchTerminalsRequest'
-            examples:
-              byMerchant:
-                summary: Filtrer par marchand
-                value:
-                  merchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-              noFilter:
-                summary: Tous les terminaux
-                value: {}
+              $ref: '#/components/schemas/DeviceSearchRequest'
+            example:
+              merchantId: merchant-uuid
       responses:
         '200':
           description: Liste des terminaux
@@ -737,144 +1057,66 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Terminal'
-              example:
-                - terminalId: 16014231
-                  merchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-                  name: Terminal Accueil
-                  statusId: 1
-                - terminalId: 16014232
-                  merchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-                  name: Terminal Salle 2
-                  statusId: 1
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                  type: object
 
   /ecr/isv/v1/transactions:sale:
     post:
       tags: [EcrTerminals]
-      summary: Envoyer une vente ISV a un terminal POS
+      summary: Creer une vente POS terminal
       description: |
-        Envoie une demande de paiement a un terminal POS Cloud Terminal.
-        Le terminal affiche le montant et attend l'insertion/tap de la carte.
-
-        Le SDK genere automatiquement un `sessionId` UUID v4 si non fourni.
-
-        **ISV Details :** Le champ `isvDetails` contient la commission ISV (`amount`) et l'UUID
-        du marchand proprietaire du terminal (`terminalMerchantId`).
-
-        > **Preauth ISV via Cloud Terminal n'est PAS supporte par Viva.**
-        > Le terminal retourne `eventId: 6000` ("ISV preauth transactions are not supported").
-        > Utiliser Smart Checkout a la place.
-
-        **SDK :** `$isv->terminals->sale(terminalId, amount, isvAmount, terminalMerchantId, ...)`
-      operationId: terminalSale
+        **ISV Preauth via Cloud Terminal n'est PAS supporte.** Le terminal retourne `eventId: 6000`.
+        Utiliser Smart Checkout (`IsvOrders::create(preauth: true)`) a la place.
+      operationId: createSale
       security:
-        - bearer: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TerminalSaleRequest'
-            examples:
-              basicSale:
-                summary: Vente ISV standard
-                value:
-                  sessionId: a1b2c3d4-e5f6-4890-abcd-ef1234567890
-                  terminalId: 16014231
-                  cashRegisterId: CR-01
-                  amount: 100
-                  currencyCode: 978
-                  merchantReference: sale_456
-                  tipAmount: 0
-                  isvDetails:
-                    amount: 10
-                    terminalMerchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
+              $ref: '#/components/schemas/EcrSaleRequest'
       responses:
         '200':
-          description: Vente envoyee au terminal (body vide = succes)
-          content:
-            application/json:
-              schema:
-                type: object
-                description: Body vide en cas de succes. Le SDK retourne `{session_id, success}`.
+          description: Session de vente creee
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Parametres incorrects
 
   /ecr/isv/v1/sessions/{sessionId}:
     get:
       tags: [EcrTerminals]
-      summary: Obtenir le statut d'une session terminal
-      description: |
-        Recupere l'etat d'une session Cloud Terminal.
-        Utilise pour le polling (verifier si le paiement est termine).
-
-        **eventId 1100** = encore en cours, continuer a poller.
-        Tout autre eventId = etat terminal (succes ou erreur).
-
-        **SDK :**
-        - `$isv->terminals->getSession($sessionId)` — polling manuel
-        - `$isv->terminals->pollUntilComplete($sessionId, $timeoutSeconds?, $intervalMs?)` — polling automatique avec timeout (defaut 120s, intervalle 3s)
+      summary: Obtenir le resultat d'une session
       operationId: getSession
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/SessionId'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Etat de la session
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionResponse'
-              examples:
-                success:
-                  summary: Transaction reussie
-                  value:
-                    success: true
-                    eventId: 0
-                    transactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-                    amount: 100
-                inProgress:
-                  summary: En cours (continuer le polling)
-                  value:
-                    success: false
-                    eventId: 1100
-                declined:
-                  summary: Transaction refusee
-                  value:
-                    success: false
-                    eventId: 1006
-                    transactionEventId: 10051
-                    message: Insufficient funds
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/EcrSessionResponse'
 
   /ecr/isv/v1/sessions:
     get:
       tags: [EcrTerminals]
-      summary: Lister les sessions du jour
-      description: |
-        Liste toutes les sessions Cloud Terminal pour une date donnee.
-
-        **SDK :** `$isv->terminals->listSessions($date)`
+      summary: Lister les sessions par date
       operationId: listSessions
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
         - name: date
           in: query
           required: true
-          description: Date au format Y-m-d
           schema:
             type: string
             format: date
-          example: "2026-03-18"
       responses:
         '200':
           description: Liste des sessions
@@ -883,42 +1125,34 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/SessionResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                  $ref: '#/components/schemas/EcrSessionResponse'
 
   /ecr/isv/v1/sessions:abort/{sessionId}:
     get:
       tags: [EcrTerminals]
-      summary: Annuler une session terminal en cours
+      summary: Annuler une session en cours
       description: |
-        Annule une session Cloud Terminal en cours.
-
-        > **Attention :** Utilise GET (pas DELETE) avec `cashRegisterId` en query param.
-        > C'est un piege courant de la documentation Viva.
-
-        **SDK :** `$isv->terminals->abort($sessionId, $cashRegisterId)`
+        **Utilise GET (pas DELETE)** avec `cashRegisterId` en query param.
+        C'est une particularite de l'API Viva Wallet.
       operationId: abortSession
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/SessionId'
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - name: cashRegisterId
           in: query
           required: true
-          description: Identifiant de la caisse enregistreuse (doit correspondre a celui utilise lors du sale)
           schema:
             type: string
-          example: CR-01
+          description: Identifiant ECR
       responses:
         '200':
-          description: Session annulee avec succes
-          content:
-            application/json:
-              schema:
-                type: object
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Session annulee
 
   # ==================== Transfers ====================
 
@@ -926,90 +1160,52 @@ paths:
     post:
       tags: [Transfers]
       summary: Envoyer des fonds a un compte connecte
-      description: |
-        Transfere des fonds vers un compte connecte (seller).
-        Peut etre lie a une transaction existante ou effectue en standalone.
-
-        **SDK :** `$isv->transfers->send($targetAccountId, $amount, $sourceWalletId?, $transactionId?, $description?)`
       operationId: sendTransfer
       security:
-        - bearer: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SendTransferRequest'
-            examples:
-              standalone:
-                summary: Transfert standalone
-                value:
-                  targetAccountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  amount: 1000
-                  description: Paiement vendeur
-              linkedToTransaction:
-                summary: Transfert lie a une transaction
-                value:
-                  targetAccountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  amount: 1000
-                  transactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-                  description: Commission vendeur
-              withWallet:
-                summary: Transfert depuis un wallet specifique
-                value:
-                  targetAccountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  amount: 1000
-                  sourceWalletId: w1a2l3l4-e5t6-uuid-000000000000
+              $ref: '#/components/schemas/TransferRequest'
+            example:
+              targetAccountId: seller-uuid
+              amount: 1000
+              description: Paiement vendeur
       responses:
         '200':
-          description: Transfert effectue
+          description: Transfert cree
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
-              example:
-                transferId: x1f2e3r4-t5r6-a7n8-uuid-000000000000
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requete invalide
 
   /platforms/v1/transfers/{transferId}:reverse:
     post:
       tags: [Transfers]
       summary: Annuler un transfert
-      description: |
-        Annule (reverse) un transfert effectue vers un compte connecte.
-
-        - Sans `amount` -> annulation totale
-        - Avec `amount` -> annulation partielle
-
-        **SDK :** `$isv->transfers->reverse($transferId, $amount?)`
       operationId: reverseTransfer
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
         - name: transferId
           in: path
           required: true
-          description: UUID du transfert a annuler
           schema:
             type: string
             format: uuid
-          example: x1f2e3r4-t5r6-a7n8-uuid-000000000000
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ReverseTransferRequest'
-            examples:
-              fullReversal:
-                summary: Annulation totale
-                value: {}
-              partialReversal:
-                summary: Annulation partielle
-                value:
-                  amount: 500
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  description: Montant en centimes (null = annulation totale)
       responses:
         '200':
           description: Transfert annule
@@ -1017,915 +1213,256 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransferResponse'
-              example:
-                transferId: r1e2v3e4-r5s6-a7l8-uuid-000000000000
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
-  # ==================== Marketplace Orders ====================
+  # ==================== MarketplaceOrders ====================
 
   /checkout/v2/orders/:
     post:
       tags: [MarketplaceOrders]
       summary: Creer un ordre marketplace avec transfert automatique
-      description: |
-        Cree un ordre de paiement sur le compte ISV (platform) avec un transfert automatique
-        vers un compte vendeur connecte.
-
-        Le `transfer` parameter declenche la distribution automatique des fonds :
-        - Le `amount` du transfer va au vendeur
-        - La difference (`amount total - transfer amount`) reste sur le compte plateforme (= commission)
-
-        **SDK :** `$isv->marketplace->create($amount, $sellerAccountId, $sellerAmount, ...)`
-
-        Le SDK retourne egalement `platform_fee` calcule (= `amount - sellerAmount`).
       operationId: createMarketplaceOrder
       security:
-        - bearer: []
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateMarketplaceOrderRequest'
-            examples:
-              standard:
-                summary: Ordre marketplace standard
-                value:
-                  amount: 5000
-                  customerTrns: Achat marketplace
-                  merchantTrns: order_789
-                  transfer:
-                    targetAccountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    amount: 4000
-              withPreauth:
-                summary: Pre-autorisation marketplace
-                value:
-                  amount: 5000
-                  preauth: true
-                  transfer:
-                    targetAccountId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    amount: 4000
+              $ref: '#/components/schemas/MarketplaceOrderCreate'
+            example:
+              amount: 5000
+              customerTrns: Achat marketplace
+              transfer:
+                targetAccountId: seller-uuid
+                amount: 4000
       responses:
         '200':
-          description: Ordre cree avec succes
+          description: Ordre marketplace cree
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateOrderResponse'
-              example:
-                orderCode: 9876543210
+                $ref: '#/components/schemas/IsvOrderResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Requete invalide
 
-  /api/transactions/{marketplaceTransactionId}:
+  /api/transactions/{transactionId}/marketplace:
     delete:
       tags: [MarketplaceOrders]
       summary: Annuler une transaction marketplace
-      description: |
-        Annule/rembourse une transaction marketplace avec options de reversal des transferts vendeur.
-
-        **Parametres query :**
-        - `amount` (optionnel) : montant en centimes pour remboursement partiel
-        - `reverseTransfers` : annuler automatiquement les transferts vendeur (defaut: true)
-        - `refundPlatformFee` : rembourser la commission plateforme (defaut: false)
-
-        **SDK :** `$isv->marketplace->cancel($transactionId, $amount?, $reverseTransfers?, $refundPlatformFee?)`
-
-        > Note : Cet endpoint utilise Bearer auth (New API), pas Composite Auth.
       operationId: cancelMarketplaceTransaction
       security:
-        - bearer: []
+        - BearerAuth: []
       parameters:
-        - name: marketplaceTransactionId
+        - name: transactionId
           in: path
           required: true
-          description: UUID de la transaction marketplace
           schema:
             type: string
             format: uuid
-          example: t1r2a3n4-s5a6-c7t8-uuid-000000000000
         - name: amount
           in: query
-          required: false
-          description: Montant en centimes pour remboursement partiel (omis = remboursement total)
           schema:
             type: integer
-            minimum: 1
+          description: Montant en centimes (null = remboursement total)
         - name: reverseTransfers
           in: query
-          required: false
-          description: Annuler automatiquement les transferts vendeur
           schema:
             type: string
-            enum: ["true", "false"]
-          example: "true"
+            enum: ['true', 'false']
+          description: Annuler les transferts vendeur (defaut true)
         - name: refundPlatformFee
           in: query
-          required: false
-          description: Rembourser la commission plateforme
           schema:
             type: string
-            enum: ["true", "false"]
-          example: "false"
+            enum: ['true', 'false']
+          description: Rembourser la commission plateforme (defaut false)
       responses:
         '200':
-          description: Transaction annulee/remboursee
-          content:
-            application/json:
-              schema:
-                type: object
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Transaction annulee
 
-  # ==================== Webhooks ====================
+  # ==================== NativeCheckoutIsv ====================
 
-  /webhook/verification:
-    get:
-      tags: [Webhooks]
-      summary: Verification du webhook (GET)
-      description: |
-        Viva Wallet envoie une requete GET pour verifier que l'URL du webhook est valide.
-        Vous devez repondre avec le JSON `{StatusCode: 0, Key: "votre-cle"}`.
-
-        **SDK :** `$isv->webhooks->verificationResponse($verificationKey)`
-      operationId: webhookVerification
-      security: []
-      responses:
-        '200':
-          description: Verification reussie
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WebhookVerification'
-              example:
-                StatusCode: 0
-                Key: your-verification-key-from-viva-dashboard
-
-  /webhook/events:
+  /nativecheckout/v2/isv/chargetokens:
     post:
-      tags: [Webhooks]
-      summary: Reception d'evenements webhook (POST)
-      description: |
-        Viva Wallet envoie les evenements de paiement via POST.
-        Le SDK parse le payload et retourne un `event_type` lisible et les `event_data`.
-
-        **SDK :** `$isv->webhooks->parse($rawBody)`
-
-        ### EventTypeId mapping
-
-        | EventTypeId | event_type | Description |
-        |-------------|-----------|-------------|
-        | 1796 | `transaction.payment.created` | Paiement effectue |
-        | 1797 | `transaction.refund.created` | Remboursement effectue |
-        | 1798 | `transaction.payment.cancelled` | Paiement annule |
-        | 1799 | `transaction.reversal.created` | Reversal cree |
-        | 1800 | `transaction.preauth.created` | Pre-autorisation creee |
-        | 1801 | `transaction.preauth.completed` | Pre-autorisation capturee |
-        | 1802 | `transaction.preauth.cancelled` | Pre-autorisation annulee |
-        | 1810 | `pos.session.created` | Session POS creee |
-        | 1811 | `pos.session.failed` | Session POS echouee |
-      operationId: webhookEvent
-      security: []
+      tags: [NativeCheckoutIsv]
+      summary: Generer un charge token ISV
+      operationId: createChargeToken
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: MerchantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID du marchand connecte
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WebhookEvent'
-            examples:
-              paymentCreated:
-                summary: Paiement effectue
-                value:
-                  EventTypeId: 1796
-                  EventData:
-                    TransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-                    Amount: 15.00
-                    StatusId: F
-                    MerchantId: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-              posSessionCreated:
-                summary: Session POS creee
-                value:
-                  EventTypeId: 1810
-                  EventData:
-                    SessionId: a1b2c3d4-e5f6-4890-abcd-ef1234567890
-                    Amount: 1.00
-                    TerminalId: 16014231
-              refundCreated:
-                summary: Remboursement effectue
-                value:
-                  EventTypeId: 1797
-                  EventData:
-                    TransactionId: r1e2f3u4-n5d6-uuid-000000000000
-                    Amount: 15.00
-                    OriginalTransactionId: t1r2a3n4-s5a6-c7t8-uuid-000000000000
+              $ref: '#/components/schemas/NativeChargeTokenRequest'
+            example:
+              amount: 1500
+              paymentData: encrypted_card_data_from_viva_js_sdk
+              paymentMethodId: 10
       responses:
         '200':
-          description: Evenement traite
+          description: Charge token genere
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeChargeTokenResponse'
+              example:
+                chargeToken: ctok_abc123def456
+        '400':
+          description: Donnees de paiement invalides
+        '401':
+          description: Authentification echouee
 
-# ==================== Components ====================
-
-components:
-  securitySchemes:
-    isvOAuth:
-      type: http
-      scheme: basic
-      description: |
-        HTTP Basic Auth avec `clientId:clientSecret` pour obtenir un Bearer token.
-        Envoye a `/connect/token` sur le serveur Accounts.
-
-        ```
-        Authorization: Basic {base64(clientId:clientSecret)}
-        Content-Type: application/x-www-form-urlencoded
-        Body: grant_type=client_credentials
-        ```
-
-    bearer:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: |
-        Bearer token obtenu via le endpoint `/connect/token` (ISV OAuth2).
-        Le SDK gere automatiquement le caching et le renouvellement.
-
-        ```
-        Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
-        ```
-
-    isvBasicAuth:
-      type: http
-      scheme: basic
-      description: |
-        HTTP Basic Auth avec `merchantId:apiKey`.
-        Utilise pour les operations Legacy API sur le propre compte ISV.
-
-        ```
-        Authorization: Basic {base64(merchantId:apiKey)}
-        ```
-
-    compositeAuth:
-      type: http
-      scheme: basic
-      description: |
-        **Composite Basic Auth** — NON DOCUMENTE par Viva Wallet.
-
-        Decouvert empiriquement lors de la certification ISV.
-        Obligatoire pour toutes les operations sur les transactions des marchands connectes
-        via l'API Legacy.
-
-        ```
-        Username: {ResellerID}:{ConnectedMerchantID}   (deux UUIDs separes par :)
-        Password: {ResellerAPIKey}
-        ```
-
-        Exemple concret :
-        ```
-        ResellerID:         "a1b2c3d4-0000-0000-0000-000000000000"
-        ConnectedMerchantID: "e5f6g7h8-0000-0000-0000-000000000000"
-        ResellerAPIKey:      "R3s3ll3rK3y..."
-
-        => Username: "a1b2c3d4-0000-0000-0000-000000000000:e5f6g7h8-0000-0000-0000-000000000000"
-        => Password: "R3s3ll3rK3y..."
-        => Authorization: Basic {base64(username:password)}
-        ```
-
-        **Erreurs sans Composite Auth :**
-        - Bearer sur Legacy -> `401 Unauthorized`
-        - ISV Basic Auth -> `"api action disabled"`
-        - Connected merchant Basic Auth + IsvAmount -> `PaymentsRecurringIsvMissingReseller`
-
-  parameters:
-    AccountId:
-      name: accountId
-      in: path
-      required: true
-      description: UUID du compte marchand connecte
-      schema:
-        type: string
-        format: uuid
-      example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-
-    TransactionId:
-      name: transactionId
-      in: path
-      required: true
-      description: UUID de la transaction
-      schema:
-        type: string
-        format: uuid
-      example: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-
-    SessionId:
-      name: sessionId
-      in: path
-      required: true
-      description: UUID de la session Cloud Terminal
-      schema:
-        type: string
-        format: uuid
-      example: a1b2c3d4-e5f6-4890-abcd-ef1234567890
-
-  schemas:
-    # ---- Authentication ----
-
-    TokenResponse:
-      type: object
-      required: [access_token, token_type, expires_in]
-      properties:
-        access_token:
-          type: string
-          description: Bearer token JWT
-          example: eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ2NDlCNjVFMDY1...
-        token_type:
-          type: string
-          enum: [bearer]
-          example: bearer
-        expires_in:
-          type: integer
-          description: Duree de validite en secondes
-          example: 3600
-
-    OAuthError:
-      type: object
-      properties:
-        error:
-          type: string
-          example: invalid_client
-        error_description:
-          type: string
-          example: Client authentication failed
-
-    # ---- Connected Accounts ----
-
-    CreateAccountRequest:
-      type: object
-      required: [email, returnUrl]
-      properties:
-        email:
-          type: string
-          format: email
-          description: Email du marchand
-          example: merchant@example.com
-        returnUrl:
-          type: string
-          format: uri
-          description: URL de redirection apres le KYB onboarding
-          example: https://app.com/onboarding/complete
-        branding:
-          type: object
-          description: Branding ISV (optionnel)
-          properties:
-            partnerName:
-              type: string
-              description: Nom de la plateforme ISV (affiche dans le dashboard Viva)
-              example: Ma Plateforme
-            logoUrl:
-              type: string
-              format: uri
-              description: URL du logo de la plateforme ISV
-              example: https://app.com/logo.png
-
-    CreateAccountResponse:
-      type: object
-      properties:
-        accountId:
-          type: string
-          format: uuid
-          description: UUID du compte cree
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        invitation:
-          type: object
-          properties:
-            redirectUrl:
-              type: string
-              format: uri
-              description: URL de redirection KYB onboarding
-              example: https://demo.vivapayments.com/onboarding/a1b2c3d4
-
-    AccountDetails:
-      type: object
-      properties:
-        accountId:
-          type: string
-          format: uuid
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        email:
-          type: string
-          format: email
-          example: merchant@example.com
-        verificationStatus:
-          type: string
-          enum: [Pending, Verified, Active, Rejected]
-          description: |
-            Statut de verification KYB :
-            - `Pending` — en attente de verification
-            - `Verified` — verifie, pret a accepter les paiements
-            - `Active` — actif (equivalent de Verified)
-            - `Rejected` — rejete par Viva
-          example: Verified
-        merchantId:
-          type: string
-          format: uuid
-          nullable: true
-          description: UUID marchand Viva (disponible apres verification)
-          example: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-        invitation:
-          type: object
-          properties:
-            redirectUrl:
-              type: string
-              format: uri
-              nullable: true
-              description: URL KYB onboarding (null si deja verifie)
-
-    UpdateAccountRequest:
-      type: object
-      description: Attributs a mettre a jour (champs variables)
-      additionalProperties: true
-      properties:
-        email:
-          type: string
-          format: email
-        branding:
-          type: object
-          properties:
-            partnerName:
-              type: string
-            logoUrl:
-              type: string
-              format: uri
-
-    # ---- ISV Orders ----
-
-    CreateIsvOrderRequest:
-      type: object
-      required: [amount]
-      properties:
-        amount:
-          type: integer
-          minimum: 1
-          description: Montant total en centimes
-          example: 1500
-        isvAmount:
-          type: integer
-          minimum: 0
-          description: Commission ISV en centimes (doit etre <= amount)
-          example: 100
-        customerTrns:
-          type: string
-          description: Description affichee dans le checkout (visible par le client)
-          example: Consultation
-        merchantTrns:
-          type: string
-          description: Reference interne (non visible par le client)
-          example: session_123
-        allowRecurring:
-          type: boolean
-          default: false
-          description: Tokeniser la carte pour les paiements recurrents
-        preauth:
-          type: boolean
-          default: false
-          description: Pre-autorisation uniquement (pas de capture immediate)
-
-    CreateOrderResponse:
-      type: object
-      properties:
-        orderCode:
-          type: integer
-          description: Code de l'ordre (utilise dans l'URL de checkout)
-          example: 1234567890
-
-    # ---- ISV Transactions ----
-
-    TransactionDetails:
-      type: object
-      description: Donnees brutes de la transaction Viva Wallet (format Legacy API, PascalCase)
-      properties:
-        TransactionId:
-          type: string
-          format: uuid
-          example: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-        Amount:
-          type: number
-          description: Montant en euros (ex. 15.00)
-          example: 15.00
-        StatusId:
-          type: string
-          description: |
-            Statut de la transaction :
-            - `F` — Finalized (terminee)
-            - `A` — Authorized (pre-autorisee)
-            - `C` — Cancelled
-            - `E` — Error
-          example: F
-        CurrencyCode:
-          type: integer
-          description: Code devise ISO 4217 (978 = EUR)
-          example: 978
-        Created:
-          type: string
-          format: date-time
-          example: "2026-03-18T10:30:00.000Z"
-        MerchantId:
-          type: string
-          format: uuid
-          example: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-        SourceCode:
-          type: string
-          example: Default
-
-    CaptureRecurringRequest:
-      type: object
-      required: [Amount]
-      description: |
-        Parametres PascalCase (convention Legacy API).
-        Utilise pour la capture de preauth ET les paiements recurrents.
-      properties:
-        Amount:
-          type: integer
-          minimum: 1
-          description: Montant en centimes a capturer / debiter
-          example: 1500
-        IsvAmount:
-          type: integer
-          minimum: 0
-          description: Commission ISV en centimes (incluse dans le montant total)
-          example: 100
-        SourceCode:
-          type: string
-          description: Code source de paiement (optionnel, utilise principalement pour le recurring)
-
-    LegacyResponse:
-      type: object
-      description: Format de reponse standard de l'API Legacy Viva Wallet
-      properties:
-        ErrorCode:
-          type: integer
-          description: "0 = succes, autre valeur = erreur"
-          example: 0
-        ErrorText:
-          type: string
-          nullable: true
-          description: Message d'erreur (null en cas de succes)
-        TimeStamp:
-          type: string
-          format: date-time
-          example: "2026-03-18T10:30:00.000Z"
-        TransactionId:
-          type: string
-          format: uuid
-          description: UUID de la transaction resultante
-          example: t1r2a3n4-s5a6-c7t8-uuid-000000000000
-
-    # ---- Cloud Terminal ----
-
-    SearchTerminalsRequest:
-      type: object
-      description: Filtres de recherche (tous optionnels)
-      properties:
-        merchantId:
-          type: string
-          format: uuid
-          description: Filtrer par marchand connecte
-        statusId:
-          type: integer
-          description: Filtrer par statut du terminal
-        sourceCode:
-          type: string
-          description: Filtrer par source code
-
-    Terminal:
-      type: object
-      properties:
-        terminalId:
-          type: integer
-          description: Terminal ID (TID)
-          example: 16014231
-        merchantId:
-          type: string
-          format: uuid
-          example: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-        name:
-          type: string
-          description: Nom du terminal
-          example: Terminal Accueil
-        statusId:
-          type: integer
-          description: Statut du terminal (1 = actif)
-          example: 1
-
-    TerminalSaleRequest:
-      type: object
-      required: [sessionId, terminalId, cashRegisterId, amount, currencyCode, isvDetails]
-      properties:
-        sessionId:
-          type: string
-          format: uuid
-          description: UUID de la session (auto-genere par le SDK si non fourni)
-          example: a1b2c3d4-e5f6-4890-abcd-ef1234567890
-        terminalId:
-          type: integer
-          description: Terminal ID (TID)
-          example: 16014231
-        cashRegisterId:
-          type: string
-          description: Identifiant de la caisse enregistreuse
-          example: CR-01
-        amount:
-          type: integer
-          minimum: 1
-          description: Montant total en centimes
-          example: 100
-        currencyCode:
-          type: integer
-          description: Code devise ISO 4217 (978 = EUR)
-          default: 978
-          example: 978
-        merchantReference:
-          type: string
-          description: Reference interne (auto-generee par le SDK si non fournie)
-          example: sale_456
-        tipAmount:
-          type: integer
-          default: 0
-          description: Montant du pourboire en centimes
-          example: 0
-        isvDetails:
-          $ref: '#/components/schemas/IsvDetails'
-
-    IsvDetails:
-      type: object
-      required: [amount, terminalMerchantId]
-      description: Details ISV pour la commission et l'identification du marchand
-      properties:
-        amount:
-          type: integer
-          description: Commission ISV en centimes
-          example: 10
-        terminalMerchantId:
-          type: string
-          format: uuid
-          description: UUID du marchand proprietaire du terminal
-          example: m1e2r3c4-h5a6-n7t8-uuid-000000000000
-
-    SessionResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          description: Indique si le paiement a reussi
-        eventId:
-          type: integer
-          description: |
-            Code evenement Cloud Terminal (EcrEventId) :
-            - `0` — SUCCESS — Transaction reussie
-            - `1003` — TERMINAL_TIMEOUT — Terminal timeout
-            - `1006` — DECLINED — Refusee par le serveur
-            - `1016` — ABORTED — Annulee (abort reussi)
-            - `1020` — INSUFFICIENT_FUNDS — Fonds insuffisants
-            - `1099` — GENERIC_ERROR — Erreur generique
-            - `1100` — IN_PROGRESS — En cours (continuer a poller)
-            - `6000` — BAD_PARAMS — Parametres incorrects
-        transactionId:
-          type: string
-          format: uuid
-          description: UUID de la transaction (disponible si success=true)
-        transactionEventId:
-          type: integer
-          description: |
-            Code raison de declin (TransactionEventId) — present uniquement si eventId indique un declin :
-            - `10001` — Refer to issuer
-            - `10003` — Invalid merchant
-            - `10004` — Pickup card
-            - `10005` — Do not honor
-            - `10006` — General error (test: 9906)
-            - `10012` — Invalid transaction
-            - `10013` — Invalid amount
-            - `10014` — Invalid card (test: 9914)
-            - `10030` — Format error
-            - `10041` — Lost card
-            - `10043` — Stolen card (test: 9920)
-            - `10051` — Insufficient funds (test: 9951)
-            - `10054` — Expired card (test: 9954)
-            - `10055` — Incorrect PIN
-            - `10057` — Not permitted cardholder (test: 9957)
-            - `10058` — Not permitted terminal
-            - `10061` — Withdrawal limit (test: 9961)
-            - `10062` — Restricted card
-            - `10063` — Security violation
-            - `10065` — Activity limit
-            - `10068` — Late response
-            - `10070` — Call issuer
-            - `10075` — PIN tries exceeded
-            - `10200` — Unmapped decline
-        amount:
-          type: integer
-          description: Montant en centimes
-        message:
-          type: string
-          description: Message descriptif (en cas d'erreur)
-
-    # ---- Transfers ----
-
-    SendTransferRequest:
-      type: object
-      required: [targetAccountId, amount]
-      properties:
-        targetAccountId:
-          type: string
-          format: uuid
-          description: UUID du compte connecte (seller) destinataire
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        amount:
-          type: integer
-          minimum: 1
-          description: Montant en centimes
-          example: 1000
-        sourceWalletId:
-          type: string
-          format: uuid
-          nullable: true
-          description: UUID du wallet source (plateforme). Optionnel.
-        transactionId:
-          type: string
-          format: uuid
-          nullable: true
-          description: Lier le transfert a une transaction existante. Optionnel.
-        description:
-          type: string
-          nullable: true
-          description: Description du transfert
-          example: Paiement vendeur
-
-    ReverseTransferRequest:
-      type: object
-      properties:
-        amount:
-          type: integer
-          minimum: 1
-          nullable: true
-          description: Montant en centimes pour annulation partielle (omis = annulation totale)
-
-    TransferResponse:
-      type: object
-      properties:
-        transferId:
-          type: string
-          format: uuid
-          description: UUID du transfert cree ou annule
-          example: x1f2e3r4-t5r6-a7n8-uuid-000000000000
-
-    # ---- Marketplace Orders ----
-
-    CreateMarketplaceOrderRequest:
-      type: object
-      required: [amount, transfer]
-      properties:
-        amount:
-          type: integer
-          minimum: 1
-          description: Montant total en centimes
-          example: 5000
-        customerTrns:
-          type: string
-          description: Description affichee au client
-          example: Achat marketplace
-        merchantTrns:
-          type: string
-          description: Reference interne
-          example: order_789
-        sourceCode:
-          type: string
-          nullable: true
-          description: Code source de paiement (optionnel)
-        preauth:
-          type: boolean
-          default: false
-          description: Pre-autorisation uniquement
-        transfer:
-          $ref: '#/components/schemas/MarketplaceTransfer'
-
-    MarketplaceTransfer:
-      type: object
-      required: [targetAccountId, amount]
-      description: Configuration du transfert automatique vers le vendeur
-      properties:
-        targetAccountId:
-          type: string
-          format: uuid
-          description: UUID du compte vendeur connecte
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        amount:
-          type: integer
-          minimum: 1
-          description: Montant en centimes a transferer au vendeur
-          example: 4000
-
-    # ---- Webhooks ----
-
-    WebhookVerification:
-      type: object
-      required: [StatusCode, Key]
-      description: Reponse a la requete de verification GET de Viva Wallet
-      properties:
-        StatusCode:
-          type: integer
-          enum: [0]
-          description: Doit toujours etre 0
-          example: 0
-        Key:
-          type: string
-          description: Cle de verification fournie par Viva dans le dashboard
-          example: your-verification-key
-
-    WebhookEvent:
-      type: object
-      description: Payload envoye par Viva Wallet via POST
-      properties:
-        EventTypeId:
-          type: integer
-          description: |
-            ID du type d'evenement :
-            - `1796` — transaction.payment.created
-            - `1797` — transaction.refund.created
-            - `1798` — transaction.payment.cancelled
-            - `1799` — transaction.reversal.created
-            - `1800` — transaction.preauth.created
-            - `1801` — transaction.preauth.completed
-            - `1802` — transaction.preauth.cancelled
-            - `1810` — pos.session.created
-            - `1811` — pos.session.failed
-          example: 1796
-        EventData:
-          type: object
-          description: Donnees de l'evenement (structure variable selon le type)
-          additionalProperties: true
-
-    # ---- Errors ----
-
-    ApiError:
-      type: object
-      description: |
-        Format d'erreur (varie selon New API vs Legacy API).
-        Le SDK normalise ces erreurs dans `ApiException`.
-      properties:
-        ErrorText:
-          type: string
-          description: Message d'erreur (format Legacy API)
-        ErrorCode:
-          type: integer
-          description: Code d'erreur Viva (format Legacy API)
-        message:
-          type: string
-          description: Message d'erreur (format New API)
-        detail:
-          type: string
-          description: Details (format New API)
-        Message:
-          type: string
-          description: Message alternatif (certaines erreurs New API)
-
-  responses:
-    Unauthorized:
-      description: Authentification echouee
-      content:
-        application/json:
+  /nativecheckout/v2/isv/transactions:
+    post:
+      tags: [NativeCheckoutIsv]
+      summary: Executer une transaction ISV avec charge token
+      operationId: createNativeTransaction
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: MerchantId
+          in: query
+          required: true
           schema:
-            $ref: '#/components/schemas/ApiError'
-          example:
-            message: Unauthorized
-            detail: Invalid or expired credentials
+            type: string
+            format: uuid
+          description: UUID du marchand connecte
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NativeTransactionRequest'
+            example:
+              chargeToken: ctok_abc123def456
+              amount: 1500
+              isvAmount: 100
+              currencyCode: 978
+              merchantTrns: session_123
+      responses:
+        '200':
+          description: Transaction executee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NativeTransactionResponse'
+              example:
+                transactionId: txn-uuid-123
+                statusId: F
+        '400':
+          description: |
+            Requete invalide. Causes courantes :
+            - `isvAmount > amount`
+            - Charge token expire ou invalide
+        '401':
+          description: Authentification echouee
 
-    NotFound:
-      description: Ressource introuvable
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          example:
-            message: Not Found
+  # ==================== IsvWebhooks ====================
 
-    BadRequest:
-      description: Requete invalide
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ApiError'
-          example:
-            ErrorText: Invalid request parameters
-            ErrorCode: 400
+  /isv/v1/webhooks:
+    post:
+      tags: [IsvWebhooks]
+      summary: Creer un webhook ISV
+      operationId: createIsvWebhook
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IsvWebhookCreate'
+            example:
+              url: https://app.com/webhooks/viva
+              eventType: transaction.payment.created
+              description: Notifications de paiement
+      responses:
+        '200':
+          description: Webhook cree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IsvWebhookResponse'
+        '400':
+          description: Requete invalide
+        '401':
+          description: Authentification echouee
 
-    LegacyError:
-      description: Erreur Legacy API
-      content:
-        application/json:
+    get:
+      tags: [IsvWebhooks]
+      summary: Lister tous les webhooks ISV
+      operationId: listIsvWebhooks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Liste des webhooks ISV
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IsvWebhookResponse'
+        '401':
+          description: Authentification echouee
+
+  /isv/v1/webhooks/{webhookId}:
+    put:
+      tags: [IsvWebhooks]
+      summary: Mettre a jour un webhook ISV
+      operationId: updateIsvWebhook
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
           schema:
-            $ref: '#/components/schemas/LegacyResponse'
-          example:
-            ErrorCode: 1
-            ErrorText: "Transaction not found or api action disabled"
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IsvWebhookUpdate'
+            example:
+              url: https://app.com/webhooks/viva-v2
+              eventType: transaction.refund.created
+      responses:
+        '200':
+          description: Webhook mis a jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IsvWebhookResponse'
+        '404':
+          description: Webhook non trouve
+
+    delete:
+      tags: [IsvWebhooks]
+      summary: Supprimer un webhook ISV
+      operationId: deleteIsvWebhook
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook supprime
+        '404':
+          description: Webhook non trouve

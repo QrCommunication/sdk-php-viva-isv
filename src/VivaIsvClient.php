@@ -7,14 +7,17 @@ namespace QrCommunication\VivaIsv;
 use QrCommunication\VivaIsv\Enums\Environment;
 use QrCommunication\VivaIsv\Resources\ConnectedAccounts;
 use QrCommunication\VivaIsv\Resources\EcrTerminals;
+use QrCommunication\VivaIsv\Resources\IsvAccounts;
 use QrCommunication\VivaIsv\Resources\IsvOrders;
 use QrCommunication\VivaIsv\Resources\IsvTransactions;
+use QrCommunication\VivaIsv\Resources\IsvWebhooks;
 use QrCommunication\VivaIsv\Resources\MarketplaceOrders;
+use QrCommunication\VivaIsv\Resources\NativeCheckoutIsv;
 use QrCommunication\VivaIsv\Resources\Transfers;
 use QrCommunication\VivaIsv\Resources\Webhooks;
 
 /**
- * Viva Wallet ISV SDK — point d'entrée principal.
+ * Viva Wallet ISV SDK — point d'entree principal.
  *
  * Utilisation :
  *
@@ -28,10 +31,10 @@ use QrCommunication\VivaIsv\Resources\Webhooks;
  *         environment: 'demo',
  *     );
  *
- *     // Créer un compte connecté
+ *     // Creer un compte connecte
  *     $account = $isv->accounts->create('email@example.com', 'https://return.url');
  *
- *     // Créer un ordre ISV avec commission
+ *     // Creer un ordre ISV avec commission
  *     $order = $isv->orders->create(
  *         connectedMerchantId: 'merchant-uuid',
  *         amount: 1500,
@@ -44,10 +47,16 @@ use QrCommunication\VivaIsv\Resources\Webhooks;
  *     // POS terminal sale
  *     $session = $isv->terminals->sale(terminalId: 16014231, amount: 100, ...);
  *     $result = $isv->terminals->pollUntilComplete($session['session_id']);
+ *
+ *     // Native checkout ISV
+ *     $token = $isv->nativeCheckout->createChargeToken('merchant-uuid', 1500, $paymentData);
+ *     $txn = $isv->nativeCheckout->createTransaction('merchant-uuid', $token['chargeToken'], 1500);
  */
 final class VivaIsvClient
 {
     public readonly ConnectedAccounts $accounts;
+
+    public readonly IsvAccounts $isvAccounts;
 
     public readonly IsvOrders $orders;
 
@@ -58,6 +67,10 @@ final class VivaIsvClient
     public readonly Transfers $transfers;
 
     public readonly MarketplaceOrders $marketplace;
+
+    public readonly NativeCheckoutIsv $nativeCheckout;
+
+    public readonly IsvWebhooks $isvWebhooks;
 
     public readonly Webhooks $webhooks;
 
@@ -87,11 +100,14 @@ final class VivaIsvClient
         $this->http = new HttpClient($this->config);
 
         $this->accounts = new ConnectedAccounts($this->http);
+        $this->isvAccounts = new IsvAccounts($this->http);
         $this->orders = new IsvOrders($this->http, $this->config);
         $this->transactions = new IsvTransactions($this->http, $this->config);
         $this->terminals = new EcrTerminals($this->http, $this->config);
         $this->transfers = new Transfers($this->http);
         $this->marketplace = new MarketplaceOrders($this->http, $this->config);
+        $this->nativeCheckout = new NativeCheckoutIsv($this->http);
+        $this->isvWebhooks = new IsvWebhooks($this->http);
         $this->webhooks = new Webhooks;
     }
 

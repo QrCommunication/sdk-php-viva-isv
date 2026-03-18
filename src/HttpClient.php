@@ -56,6 +56,14 @@ final class HttpClient
     }
 
     /** @return array<string, mixed> */
+    public function put(string $path, array $body = []): array
+    {
+        return $this->requestBearer('PUT', $this->config->apiUrl().$path, [
+            RequestOptions::JSON => $body,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
     public function delete(string $path, array $body = []): array
     {
         return $this->requestBearer('DELETE', $this->config->apiUrl().$path, [

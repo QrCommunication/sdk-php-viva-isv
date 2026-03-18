@@ -82,6 +82,16 @@ final class ConnectedAccounts
     }
 
     /**
+     * List all connected accounts (paginated).
+     *
+     * @return array<string, mixed>  Paginated list of connected accounts
+     */
+    public function list(): array
+    {
+        return $this->http->get('/platforms/v1/accounts');
+    }
+
+    /**
      * Update connected account attributes.
      *
      * @param  string  $accountId  Connected account UUID
@@ -91,5 +101,16 @@ final class ConnectedAccounts
     public function update(string $accountId, array $attributes): array
     {
         return $this->http->post("/platforms/v1/accounts/{$accountId}", $attributes);
+    }
+
+    /**
+     * Delete/disconnect a connected account.
+     *
+     * @param  string  $accountId  Connected account UUID
+     * @return array<string, mixed>
+     */
+    public function delete(string $accountId): array
+    {
+        return $this->http->delete("/platforms/v1/accounts/{$accountId}");
     }
 }
