@@ -860,20 +860,25 @@ Documentation interactive ReDoc disponible :
 
 ---
 
-## Integration AI (Claude, Cursor, Copilot, Codex)
+## Intégration IA
 
-Ce SDK est concu pour etre facilement utilisable par les assistants IA :
+Ce SDK inclut un **skill détaillé** (`skill/SKILL.md`) automatiquement détecté par les assistants IA. Il fournit la référence complète des 10 resources, 36+ méthodes, 3 modes d'auth, enums, exceptions, 9 pièges de certification et patterns d'implémentation.
 
-- **OpenAPI** : `openapi.yaml` a la racine — importable directement
-- **CLAUDE.md** : instructions specifiques pour Claude Code
-- **AGENTS.md** : roles et workflows pour les agents AI
-- **Types PHP stricts** : `declare(strict_types=1)` partout, enums PHP 8.1+, types de retour explicites
+| Outil | Fichier | Détection |
+|-------|---------|-----------|
+| **Claude Code** | `CLAUDE.md` + `skill/SKILL.md` | Automatique |
+| **Cursor** | `.cursorrules` | Automatique |
+| **GitHub Copilot** | `.github/copilot-instructions.md` | Automatique |
+| **OpenAI Codex** | `AGENTS.md` | Automatique |
 
-```
-# Donner le contexte a l'IA
-@openapi.yaml
-@CLAUDE.md
-@src/VivaIsvClient.php
+```php
+// Un agent IA peut construire cet appel à partir de :
+// "Crée un paiement ISV de 50€ avec 5€ de commission"
+$order = $isv->orders->create(
+    connectedMerchantId: $merchantId,
+    amount: 5000,
+    isvAmount: 500,
+);
 ```
 
 ---
