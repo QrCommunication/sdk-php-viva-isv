@@ -9,6 +9,8 @@ use QrCommunication\VivaIsv\Resources\ConnectedAccounts;
 use QrCommunication\VivaIsv\Resources\EcrTerminals;
 use QrCommunication\VivaIsv\Resources\IsvOrders;
 use QrCommunication\VivaIsv\Resources\IsvTransactions;
+use QrCommunication\VivaIsv\Resources\MarketplaceOrders;
+use QrCommunication\VivaIsv\Resources\Transfers;
 use QrCommunication\VivaIsv\Resources\Webhooks;
 
 /**
@@ -53,6 +55,10 @@ final class VivaIsvClient
 
     public readonly EcrTerminals $terminals;
 
+    public readonly Transfers $transfers;
+
+    public readonly MarketplaceOrders $marketplace;
+
     public readonly Webhooks $webhooks;
 
     private readonly IsvConfig $config;
@@ -84,6 +90,8 @@ final class VivaIsvClient
         $this->orders = new IsvOrders($this->http, $this->config);
         $this->transactions = new IsvTransactions($this->http, $this->config);
         $this->terminals = new EcrTerminals($this->http, $this->config);
+        $this->transfers = new Transfers($this->http);
+        $this->marketplace = new MarketplaceOrders($this->http, $this->config);
         $this->webhooks = new Webhooks;
     }
 

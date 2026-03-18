@@ -80,4 +80,16 @@ final class ConnectedAccounts
 
         return in_array($status, ['Verified', 'Active'], true);
     }
+
+    /**
+     * Update connected account attributes.
+     *
+     * @param  string  $accountId  Connected account UUID
+     * @param  array<string, mixed>  $attributes  Fields to update
+     * @return array<string, mixed>
+     */
+    public function update(string $accountId, array $attributes): array
+    {
+        return $this->http->post("/platforms/v1/accounts/{$accountId}", $attributes);
+    }
 }
