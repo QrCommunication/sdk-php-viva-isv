@@ -37,7 +37,7 @@ info:
     | 3DS password | `Secret!33` |
   contact:
     name: QrCommunication
-    email: dev@praticonnect.com
+    email: contact@qrcommunication.com
     url: https://qrcommunication.com
   license:
     name: MIT
