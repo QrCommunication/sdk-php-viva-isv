@@ -3,19 +3,93 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Viva Wallet ISV SDK — API Documentation</title>
-    <meta name="description" content="Documentation interactive de l'API Viva Wallet ISV Partner SDK — comptes connectés, ordres, transactions, Cloud Terminal POS." />
+    <title>Viva Wallet ISV SDK v1.3.0 — API Documentation</title>
+    <meta name="description" content="Documentation interactive de l'API Viva Wallet ISV Partner SDK v1.3.0 — comptes connectes, ordres ISV, transactions, Cloud Terminal POS, transferts marketplace et webhooks." />
 
-    <!-- ReDoc -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
     <style>
+        * { box-sizing: border-box; }
         body { margin: 0; padding: 0; }
+
+        /* Custom banner */
+        .sdk-banner {
+            background: linear-gradient(135deg, #0052FF 0%, #0039B3 100%);
+            color: #fff;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .sdk-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .sdk-banner h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .sdk-banner .version {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .sdk-banner-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .sdk-banner a {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .sdk-banner a:hover {
+            color: #fff;
+        }
+
+        @media (max-width: 600px) {
+            .sdk-banner {
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Banner -->
+    <div class="sdk-banner">
+        <div class="sdk-banner-left">
+            <h1>Viva Wallet ISV SDK</h1>
+            <span class="version">v1.3.0</span>
+        </div>
+        <div class="sdk-banner-right">
+            <a href="https://github.com/qrcommunication/sdk-php-viva-isv" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://packagist.org/packages/qrcommunication/viva-isv-sdk" target="_blank" rel="noopener">Packagist</a>
+            <a href="https://qrcommunication.com" target="_blank" rel="noopener">QrCommunication</a>
+        </div>
+    </div>
+
+    <!-- ReDoc -->
     <redoc
         spec-url="openapi.yaml"
         hide-hostname
+        expand-responses="200"
+        path-in-middle-panel
         theme='{
             "colors": {
                 "primary": { "main": "#0052FF" },
@@ -33,7 +107,8 @@
             "sidebar": {
                 "width": "280px",
                 "backgroundColor": "#fafbfc",
-                "textColor": "#1a1a2e"
+                "textColor": "#1a1a2e",
+                "activeTextColor": "#0052FF"
             },
             "rightPanel": {
                 "backgroundColor": "#1a1a2e"
