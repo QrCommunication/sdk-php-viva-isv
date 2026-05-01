@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace QrCommunication\VivaIsv;
 
 use QrCommunication\VivaIsv\Enums\Environment;
+use QrCommunication\VivaIsv\Helpers\MerchantWebhookRegistrar;
 use QrCommunication\VivaIsv\Resources\ConnectedAccounts;
 use QrCommunication\VivaIsv\Resources\EcrTerminals;
 use QrCommunication\VivaIsv\Resources\IsvAccounts;
+use QrCommunication\VivaIsv\Resources\IsvMessages;
 use QrCommunication\VivaIsv\Resources\IsvOrders;
 use QrCommunication\VivaIsv\Resources\IsvTransactions;
 use QrCommunication\VivaIsv\Resources\IsvWebhooks;
@@ -51,6 +53,12 @@ use QrCommunication\VivaIsv\Resources\Webhooks;
  *     // Native checkout ISV
  *     $token = $isv->nativeCheckout->createChargeToken('merchant-uuid', 1500, $paymentData);
  *     $txn = $isv->nativeCheckout->createTransaction('merchant-uuid', $token['chargeToken'], 1500);
+ *
+ *     // Merchant-level webhook registration (banking events 768/769/2054)
+ *     $results = $isv->merchantWebhookRegistrar()->registerAll(
+ *         connectedMerchantId: 'merchant-uuid',
+ *         callbackUrl: 'https://app.example.com/api/webhooks/viva',
+ *     );
  */
 final class VivaIsvClient
 {
@@ -74,9 +82,13 @@ final class VivaIsvClient
 
     public readonly Webhooks $webhooks;
 
+    public readonly IsvMessages $messages;
+
     private readonly IsvConfig $config;
 
     private readonly HttpClient $http;
+
+    private ?MerchantWebhookRegistrar $merchantWebhookRegistrarInstance = null;
 
     public function __construct(
         string $clientId,
@@ -109,6 +121,7 @@ final class VivaIsvClient
         $this->nativeCheckout = new NativeCheckoutIsv($this->http);
         $this->isvWebhooks = new IsvWebhooks($this->http);
         $this->webhooks = new Webhooks;
+        $this->messages = new IsvMessages($this->http, $this->config);
     }
 
     public function getConfig(): IsvConfig
@@ -119,6 +132,24 @@ final class VivaIsvClient
     public function invalidateToken(): void
     {
         $this->http->invalidateToken();
+    }
+
+    /**
+     * Idempotent helper for registering merchant-level webhooks (events 768/769/2054).
+     *
+     * Lazy-initialized. Treats HTTP 400 "duplicate" from Viva as a success,
+     * making it safe to call on every merchant provisioning flow.
+     *
+     * Usage:
+     *
+     *     $results = $isv->merchantWebhookRegistrar()->registerAll(
+     *         connectedMerchantId: $merchantId,
+     *         callbackUrl: 'https://app.example.com/api/webhooks/viva',
+     *     );
+     */
+    public function merchantWebhookRegistrar(): MerchantWebhookRegistrar
+    {
+        return $this->merchantWebhookRegistrarInstance ??= new MerchantWebhookRegistrar($this->messages);
     }
 
     /**

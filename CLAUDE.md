@@ -11,16 +11,18 @@ Gere les comptes connectes, les comptes ISV, les ordres ISV avec commission, le 
 
 ```
 VivaIsvClient (point d'entree)
-+-- accounts       -> ConnectedAccounts  (New API, Bearer — /platforms/v1/)
-+-- isvAccounts    -> IsvAccounts        (New API, Bearer — /isv/v1/)
-+-- orders         -> IsvOrders          (New API, Bearer — /checkout/v2/isv/)
-+-- transactions   -> IsvTransactions    (Legacy API, Composite Basic Auth)
-+-- terminals      -> EcrTerminals       (New API, Bearer — /ecr/isv/v1/)
-+-- transfers      -> Transfers          (New API, Bearer — /platforms/v1/)
-+-- marketplace    -> MarketplaceOrders  (New API, Bearer — /checkout/v2/orders/)
-+-- nativeCheckout -> NativeCheckoutIsv  (New API, Bearer — /nativecheckout/v2/isv/)
-+-- isvWebhooks    -> IsvWebhooks        (New API, Bearer — /isv/v1/)
-+-- webhooks       -> Webhooks           (pas d'auth)
++-- accounts                  -> ConnectedAccounts       (New API, Bearer — /platforms/v1/)
++-- isvAccounts               -> IsvAccounts             (New API, Bearer — /isv/v1/)
++-- orders                    -> IsvOrders               (New API, Bearer — /checkout/v2/isv/)
++-- transactions              -> IsvTransactions         (Legacy API, Composite Basic Auth)
++-- terminals                 -> EcrTerminals            (New API, Bearer — /ecr/isv/v1/)
++-- transfers                 -> Transfers               (New API, Bearer — /platforms/v1/)
++-- marketplace               -> MarketplaceOrders       (New API, Bearer — /checkout/v2/orders/)
++-- nativeCheckout            -> NativeCheckoutIsv       (New API, Bearer — /nativecheckout/v2/isv/)
++-- isvWebhooks               -> IsvWebhooks             (New API, Bearer — /isv/v1/)
++-- webhooks                  -> Webhooks                (pas d'auth)
++-- messages                  -> IsvMessages             (Legacy API, Composite Basic Auth — /api/messages/config)
++-- merchantWebhookRegistrar() -> MerchantWebhookRegistrar (Helpers, lazy — wrapper idempotent de IsvMessages)
 ```
 
 ## Les 3 Authentifications ISV
@@ -235,6 +237,33 @@ VivaException (RuntimeException)
 8. **Abort ECR** utilise GET (pas DELETE) avec `cashRegisterId` en query param.
 9. **Ordres ISV** : NE PAS envoyer `sourceCode` — le connected merchant utilise sa source par defaut.
 
+## Webhooks : deux niveaux distincts (CRITIQUE)
+
+| Niveau | Resource | Endpoint | Auth | Events |
+|--------|----------|----------|------|--------|
+| **ISV-level** | `$isv->isvWebhooks` | `/isv/v1/webhooks` | Bearer | 1796/1797/1798/1799/8193/8194 — auto-broadcast par Viva |
+| **Merchant-level** | `$isv->messages` | `/api/messages/config` | Composite | 768/769/2054 — doivent etre enregistres per-merchant |
+
+**TOUJOURS utiliser `merchantWebhookRegistrar()` pour les merchant webhooks** (idempotent).
+Ne JAMAIS utiliser `IsvMessages::register()` directement en provisioning — un doublon Viva
+retourne HTTP 400 qui casserait le flux. `MerchantWebhookRegistrar::registerAll()` traite
+les 400 duplicate comme succes silencieux.
+
+```php
+// OBLIGATOIRE (idempotent)
+$isv->merchantWebhookRegistrar()->registerAll($merchantId, $callbackUrl);
+
+// A EVITER en provisioning (non idempotent — 400 sur doublon)
+$isv->messages->register($merchantId, 768, $callbackUrl);
+```
+
+## Helpers d'environnement
+
+```php
+$isv->getConfig()->isProduction(); // true en production, false en demo
+$isv->getConfig()->isSandbox();    // true en demo, false en production
+```
+
 ## Conventions de code
 
 - PHP 8.2+ strict types
@@ -242,6 +271,7 @@ VivaException (RuntimeException)
 - PSR-4 : `QrCommunication\VivaIsv\`
 - Guzzle 7.8+ comme client HTTP
 - Le `connectedMerchantId` est toujours un parametre explicite (pas de state global)
+- Les helpers (`Helpers/`) encapsulent la logique de haut niveau au-dessus des Resources brutes
 
 ## Carte de test (demo)
 

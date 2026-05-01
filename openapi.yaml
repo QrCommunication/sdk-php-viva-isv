@@ -104,6 +104,15 @@ tags:
     description: |
       `$isv->webhooks` — Vérification et parsing des événements webhook (21 types).
       Réponse de vérification GET, parsing du payload POST, validation des événements.
+  - name: IsvMessages
+    description: |
+      `$isv->messages` — Abonnements webhook au niveau marchand connecté via `/api/messages/config`.
+
+      Utilise le Composite Basic Auth (ResellerID:ConnectedMerchantID / ResellerAPIKey).
+      À utiliser pour les événements bancaires per-merchant (768/769/2054) que Viva n'envoie
+      pas automatiquement aux webhooks ISV-level.
+
+      **Préférer `$isv->merchantWebhookRegistrar()->registerAll()` en provisioning** (idempotent).
 
 paths:
   # ==================== ConnectedAccounts ====================
@@ -1317,7 +1326,136 @@ paths:
               schema:
                 type: boolean
 
+  # ==================== IsvMessages ====================
+
+  /IsvMessages/register:
+    post:
+      tags: [IsvMessages]
+      operationId: messages-register
+      summary: "$isv->messages->register()"
+      description: |
+        Enregistre un abonnement webhook au niveau marchand connecté.
+
+        Utilise le Composite Basic Auth (`ResellerID:ConnectedMerchantID` / `ResellerAPIKey`).
+        Endpoint Legacy : `/api/messages/config` (PascalCase).
+
+        **Attention** : HTTP 400 si le même URL + EventTypeId est déjà enregistré.
+        Pour une registration idempotente, utiliser `merchantWebhookRegistrar()->registerAll()`.
+
+        ```php
+        // Bas-niveau — lève ApiException sur doublon
+        $isv->messages->register('merchant-uuid', 768, 'https://app.example.com/api/webhooks/viva');
+
+        // Haut-niveau — idempotent, gère le doublon silencieusement
+        $results = $isv->merchantWebhookRegistrar()->registerAll(
+            connectedMerchantId: 'merchant-uuid',
+            callbackUrl: 'https://app.example.com/api/webhooks/viva',
+        );
+        foreach ($results as $r) {
+            echo "Event {$r['event_id']} : {$r['status']}\n";
+            // status: 'created' | 'already_exists' | 'failed'
+        }
+        ```
+      security:
+        - compositeBasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IsvMessageRegisterParams'
+      responses:
+        '200':
+          description: Abonnement créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IsvMessageDetails'
+        '400':
+          description: Doublon (même URL + EventTypeId) ou paramètres invalides
+          $ref: '#/components/responses/ApiError'
+        '401':
+          $ref: '#/components/responses/AuthError'
+
+  /IsvMessages/list:
+    get:
+      tags: [IsvMessages]
+      operationId: messages-list
+      summary: "$isv->messages->list()"
+      description: |
+        Liste tous les abonnements webhook d'un marchand connecté.
+
+        ```php
+        $subscriptions = $isv->messages->list('merchant-uuid');
+        foreach ($subscriptions as $sub) {
+            echo $sub['MessageId'] . ' — EventTypeId: ' . $sub['EventTypeId'];
+        }
+        ```
+      security:
+        - compositeBasicAuth: []
+      parameters:
+        - name: connectedMerchantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID du marchand connecté
+      responses:
+        '200':
+          description: Liste des abonnements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IsvMessageDetails'
+
+  /IsvMessages/delete:
+    delete:
+      tags: [IsvMessages]
+      operationId: messages-delete
+      summary: "$isv->messages->delete()"
+      description: |
+        Supprime un abonnement webhook par son MessageId.
+
+        ```php
+        $isv->messages->delete('merchant-uuid', 'message-uuid');
+        ```
+      security:
+        - compositeBasicAuth: []
+      parameters:
+        - name: connectedMerchantId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: messageId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID du message/abonnement à supprimer
+      responses:
+        '200':
+          description: Abonnement supprimé
+        '404':
+          $ref: '#/components/responses/ApiError'
+
 components:
+  securitySchemes:
+    compositeBasicAuth:
+      type: http
+      scheme: basic
+      description: |
+        Composite Basic Auth (non documenté par Viva Wallet, découvert empiriquement).
+
+        Username: `{ResellerID}:{ConnectedMerchantID}` (deux UUIDs séparés par `:`)
+        Password: `{ResellerAPIKey}`
+
+        Le SDK construit ce header automatiquement via `IsvConfig::compositeUsername()`.
   responses:
     ApiError:
       description: Erreur API
@@ -1827,6 +1965,53 @@ components:
           format: uuid
         statusId:
           type: string
+
+    # ==================== IsvMessages ====================
+
+    IsvMessageRegisterParams:
+      type: object
+      required: [connectedMerchantId, eventTypeId, callbackUrl]
+      description: |
+        Paramètres d'enregistrement d'un webhook merchant-level.
+        L'API Legacy Viva utilise des clés PascalCase — le SDK convertit automatiquement.
+      properties:
+        connectedMerchantId:
+          type: string
+          format: uuid
+          description: UUID du marchand connecté
+        eventTypeId:
+          type: integer
+          description: |
+            ID de l'événement à surveiller.
+            - 768  : Command Bank Transfer Created (virement émis créé)
+            - 769  : Command Bank Transfer Executed (virement émis exécuté)
+            - 2054 : Account Transaction Created (settlements / fonds reçus)
+          example: 768
+          enum: [768, 769, 2054]
+        callbackUrl:
+          type: string
+          format: uri
+          description: URL de réception des notifications
+          example: "https://app.example.com/api/webhooks/viva"
+
+    IsvMessageDetails:
+      type: object
+      description: Abonnement webhook merchant-level retourné par l'API Viva.
+      properties:
+        MessageId:
+          type: string
+          format: uuid
+          description: Identifiant unique de l'abonnement
+        EventTypeId:
+          type: integer
+          example: 768
+        Url:
+          type: string
+          format: uri
+          description: URL de callback configurée
+        IsActive:
+          type: boolean
+          example: true
 
     # ==================== IsvWebhooks ====================
 

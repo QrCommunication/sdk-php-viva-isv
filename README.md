@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Packagist](https://img.shields.io/badge/Packagist-qrcommunication%2Fviva--isv--sdk-orange.svg)](https://packagist.org/packages/qrcommunication/viva-isv-sdk)
 
-SDK PHP complet pour l'API Viva Wallet ISV Partner. 10 ressources couvrant : comptes connectes, comptes ISV, ordres ISV avec commission, transactions (capture, recurrent, annulation), terminaux Cloud POS, transferts marketplace, ordres marketplace, Native Checkout ISV, webhooks ISV (CRUD) et parsing (21 evenements).
+SDK PHP complet pour l'API Viva Wallet ISV Partner. 11 ressources couvrant : comptes connectes, comptes ISV, ordres ISV avec commission, transactions (capture, recurrent, annulation), terminaux Cloud POS, transferts marketplace, ordres marketplace, Native Checkout ISV, webhooks ISV (CRUD), webhooks merchant-level (CRUD) et parsing (21 evenements).
 
 > **Ce SDK couvre les operations ISV (comptes connectes, composite auth, commission).** Pour les operations marchands standard, voir [`sdk-php-viva-merchant`](https://github.com/qrcommunication/sdk-php-viva-merchant).
 
@@ -26,6 +26,9 @@ SDK PHP complet pour l'API Viva Wallet ISV Partner. 10 ressources couvrant : com
   - [8. NativeCheckoutIsv — paiement natif ISV](#8-nativecheckoutisv--paiement-natif-isv)
   - [9. IsvWebhooks — CRUD webhooks ISV](#9-isvwebhooks--crud-webhooks-isv)
   - [10. Webhooks — verification et parsing](#10-webhooks--verification-et-parsing)
+  - [11. IsvMessages — webhooks merchant-level](#11-isvmessages--webhooks-merchant-level)
+- [Merchant-Level Webhook Registration](#merchant-level-webhook-registration)
+- [IsvConfig — helpers d'environnement](#isvconfig--helpers-denvironnement)
 - [Architecture](#architecture)
 - [Authentification](#authentification)
 - [Enums](#enums)
@@ -537,28 +540,121 @@ if (Webhooks::isKnownEvent(1796)) {
 
 ---
 
+### 11. IsvMessages — webhooks merchant-level
+
+**Propriete** : `$isv->messages`
+
+Gestion des abonnements webhook au niveau marchand connecte via `/api/messages/config`.
+Utilise le Composite Basic Auth automatiquement.
+
+Contrairement aux webhooks ISV-level (`$isv->isvWebhooks`), ces abonnements sont
+specifiques a chaque marchand connecte et couvrent des evenements bancaires (virements emis,
+settlements) que Viva n'envoie pas automatiquement a l'ISV.
+
+| Methode | Signature | Retour |
+|---------|-----------|--------|
+| `register` | `register(string $connectedMerchantId, int $eventTypeId, string $callbackUrl)` | `array{MessageId, EventTypeId, Url, IsActive}` |
+| `list` | `list(string $connectedMerchantId)` | `array[]` |
+| `delete` | `delete(string $connectedMerchantId, string $messageId)` | `array` |
+
+**Events recommandes** :
+
+| EventTypeId | Description |
+|-------------|-------------|
+| 768 | Command Bank Transfer Created (virement emis cree) |
+| 769 | Command Bank Transfer Executed (virement emis execute) |
+| 2054 | Account Transaction Created (settlements / fonds recus) |
+
+```php
+// Enregistrement bas-niveau (une seule subscription)
+$isv->messages->register('merchant-uuid', 768, 'https://app.example.com/api/webhooks/viva');
+
+// Lister toutes les subscriptions d'un marchand
+$subscriptions = $isv->messages->list('merchant-uuid');
+
+// Supprimer une subscription par son MessageId
+$isv->messages->delete('merchant-uuid', $subscriptions[0]['MessageId']);
+```
+
+**Important** : si un webhook avec le meme URL + EventTypeId existe deja, Viva
+retourne HTTP 400 "duplicate". Pour une registration idempotente, utiliser
+`$isv->merchantWebhookRegistrar()` (cf. section suivante).
+
+---
+
+## Merchant-Level Webhook Registration
+
+Le helper `MerchantWebhookRegistrar` encapsule `IsvMessages::register()` pour rendre la
+registration **idempotente** : un doublon HTTP 400 est traite comme un succes silencieux.
+Cela permet d'appeler cette methode a chaque provisioning de marchand sans risque d'erreur.
+
+```php
+// Enregistrer les 3 events bancaires en une fois (768, 769, 2054)
+$results = $isv->merchantWebhookRegistrar()->registerAll(
+    connectedMerchantId: $merchantId,
+    callbackUrl: 'https://app.example.com/api/webhooks/viva',
+);
+
+foreach ($results as $r) {
+    // $r['event_id']  : int (768, 769, 2054)
+    // $r['status']    : 'created' | 'already_exists' | 'failed'
+    // $r['message']   : string (seulement si 'failed')
+    echo "Event {$r['event_id']} : {$r['status']}\n";
+}
+```
+
+```php
+// Enregistrer des events personnalises
+$results = $isv->merchantWebhookRegistrar()->registerAll(
+    connectedMerchantId: $merchantId,
+    callbackUrl: 'https://app.example.com/api/webhooks/viva',
+    events: [768 => 'Bank Transfer Created'],
+);
+```
+
+### Difference entre webhooks ISV-level et merchant-level
+
+| Niveau | Resource | Endpoint | Auth | Quand utiliser |
+|--------|----------|----------|------|----------------|
+| **ISV-level** | `$isv->isvWebhooks` | `/isv/v1/webhooks` | Bearer | Events auto-broadcast : transactions (1796-1799), comptes (8193/8194), etc. |
+| **Merchant-level** | `$isv->messages` | `/api/messages/config` | Composite | Events bancaires per-merchant : virements (768/769), settlements (2054) |
+
+---
+
+## IsvConfig — helpers d'environnement
+
+```php
+// Verifier l'environnement sans inspecter les URLs
+$isv->getConfig()->isProduction(); // true en production
+$isv->getConfig()->isSandbox();    // true en demo
+```
+
+---
+
 ## Architecture
 
 ```
 VivaIsvClient
-├── $accounts          → ConnectedAccounts   (7 methodes)
-├── $isvAccounts       → IsvAccounts         (3 methodes)
-├── $orders            → IsvOrders           (2 methodes)
-├── $transactions      → IsvTransactions     (5 methodes)
-├── $terminals         → EcrTerminals        (6 methodes)
-├── $transfers         → Transfers           (2 methodes)
-├── $marketplace       → MarketplaceOrders   (2 methodes)
-├── $nativeCheckout    → NativeCheckoutIsv   (2 methodes)
-├── $isvWebhooks       → IsvWebhooks         (4 methodes)
-└── $webhooks          → Webhooks            (3 methodes)
+├── $accounts               → ConnectedAccounts   (7 methodes)
+├── $isvAccounts            → IsvAccounts         (3 methodes)
+├── $orders                 → IsvOrders           (2 methodes)
+├── $transactions           → IsvTransactions     (5 methodes)
+├── $terminals              → EcrTerminals        (6 methodes)
+├── $transfers              → Transfers           (2 methodes)
+├── $marketplace            → MarketplaceOrders   (2 methodes)
+├── $nativeCheckout         → NativeCheckoutIsv   (2 methodes)
+├── $isvWebhooks            → IsvWebhooks         (4 methodes)
+├── $webhooks               → Webhooks            (3 methodes)
+└── $messages               → IsvMessages         (3 methodes)
+    merchantWebhookRegistrar() → MerchantWebhookRegistrar (1 methode, lazy)
 
-36 methodes au total — 10 ressources
+39 methodes au total — 11 ressources
 ```
 
 ```
 src/
-├── VivaIsvClient.php              # Point d'entree, instancie les 10 ressources
-├── IsvConfig.php                  # Configuration (6 credentials + environnement)
+├── VivaIsvClient.php              # Point d'entree, instancie les 11 ressources
+├── IsvConfig.php                  # Configuration (6 credentials + environnement + isProduction/isSandbox)
 ├── HttpClient.php                 # Client HTTP (Bearer, Basic, Composite Auth)
 ├── Enums/
 │   ├── Environment.php            # demo | production
@@ -568,6 +664,8 @@ src/
 │   ├── VivaException.php          # Exception de base
 │   ├── ApiException.php           # Erreurs API (4xx, 5xx)
 │   └── AuthenticationException.php # Erreurs OAuth2 (401)
+├── Helpers/
+│   └── MerchantWebhookRegistrar.php # Helper idempotent merchant webhooks
 └── Resources/
     ├── ConnectedAccounts.php      # 7 methodes
     ├── IsvAccounts.php            # 3 methodes
@@ -578,6 +676,7 @@ src/
     ├── MarketplaceOrders.php      # 2 methodes
     ├── NativeCheckoutIsv.php      # 2 methodes
     ├── IsvWebhooks.php            # 4 methodes
+    ├── IsvMessages.php            # 3 methodes
     └── Webhooks.php               # 3 methodes
 ```
 

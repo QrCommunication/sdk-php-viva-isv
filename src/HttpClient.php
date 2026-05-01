@@ -28,8 +28,9 @@ final class HttpClient
 
     public function __construct(
         private readonly IsvConfig $config,
+        ?Client $guzzle = null,
     ) {
-        $this->guzzle = new Client([
+        $this->guzzle = $guzzle ?? new Client([
             'timeout' => 30,
             'connect_timeout' => 10,
             'http_errors' => false,

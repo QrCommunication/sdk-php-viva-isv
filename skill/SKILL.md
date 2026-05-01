@@ -107,11 +107,42 @@ VivaIsvClient (point d'entrée, 3 auth modes, lazy)
 │   ├── update(webhookId, url, eventType?) → array
 │   └── delete(webhookId) → array
 │
+├── messages        → IsvMessages         (/api/messages/config, Composite Basic Auth)
+│   ├── register(connectedMerchantId, eventTypeId, callbackUrl) → array{MessageId, EventTypeId, Url, IsActive}
+│   │   ⚠ HTTP 400 si duplicate — utiliser merchantWebhookRegistrar() en provisioning
+│   ├── list(connectedMerchantId) → array[]
+│   └── delete(connectedMerchantId, messageId) → array
+│
+├── merchantWebhookRegistrar() → MerchantWebhookRegistrar  (lazy helper, Helpers/)
+│   └── registerAll(connectedMerchantId, callbackUrl, events?) → array{event_id, status, message?}[]
+│       ⚠ Idempotent : HTTP 400 duplicate → status 'already_exists' (pas d'exception)
+│       ⚠ BANKING_EVENTS par défaut : 768 (Bank Transfer Created), 769 (Bank Transfer Executed), 2054 (Account Transaction Created)
+│
 └── webhooks        → Webhooks            (pas d'auth — parsing)
     ├── verificationResponse(verificationKey) → ['StatusCode' => 0, 'Key' => string]
     ├── parse(rawBody) → ['event_type' => string, 'event_type_id' => int, 'event_data' => array]
     ├── isKnownEvent(eventTypeId) → bool (static)
     └── EVENTS (const) → array<int, string> (21 événements)
+```
+
+## Webhooks : deux niveaux distincts (CRITIQUE)
+
+| Niveau | Resource | Endpoint | Auth | Events | Notes |
+|--------|----------|----------|------|--------|-------|
+| **ISV-level** | `$isv->isvWebhooks` | `/isv/v1/webhooks` | Bearer | 1796/1797/1798/1799/8193/8194 | Auto-broadcast par Viva — à enregistrer une seule fois pour la plateforme |
+| **Merchant-level** | `$isv->messages` | `/api/messages/config` | Composite | 768/769/2054 | À enregistrer per-merchant lors du provisioning |
+
+### Règle : TOUJOURS `merchantWebhookRegistrar()` pour les merchant webhooks
+
+```php
+// CORRECT — idempotent, pas d'erreur si déjà enregistré
+$results = $isv->merchantWebhookRegistrar()->registerAll(
+    connectedMerchantId: $merchantId,
+    callbackUrl: 'https://app.example.com/api/webhooks/viva',
+);
+
+// INCORRECT en provisioning — 400 sur doublon lève ApiException
+$isv->messages->register($merchantId, 768, $callbackUrl);
 ```
 
 ## Les 3 Authentifications
@@ -122,7 +153,7 @@ Le SDK gère les 3 modes automatiquement — le développeur passe juste les 6 c
 |------|-------|----------------|
 | **Bearer ISV OAuth** | Comptes, ordres ISV, terminaux, transferts, marketplace, native checkout, webhooks ISV | `Authorization: Bearer {token}` (lazy, auto-refresh) |
 | **Basic Auth ISV** | Propre compte sur Legacy API | `MerchantID:APIKey` |
-| **Composite Basic Auth** | Transactions des marchands connectés (capture, recurring, cancel) | `ResellerID:ConnMerchantID` / `ResellerAPIKey` |
+| **Composite Basic Auth** | Transactions des marchands connectés (capture, recurring, cancel) **+ merchant webhooks** (`IsvMessages`) | `ResellerID:ConnMerchantID` / `ResellerAPIKey` |
 
 ### Composite Basic Auth (NON DOCUMENTÉ par Viva)
 

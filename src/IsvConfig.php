@@ -65,4 +65,22 @@ final class IsvConfig
     {
         return "{$this->resellerId}:{$connectedMerchantId}";
     }
+
+    /**
+     * Returns true when the client is configured for the production environment.
+     *
+     * Prefer this over inspecting legacyUrl() or apiUrl() directly.
+     */
+    public function isProduction(): bool
+    {
+        return $this->environment === Environment::PRODUCTION;
+    }
+
+    /**
+     * Returns true when the client is configured for the sandbox (demo) environment.
+     */
+    public function isSandbox(): bool
+    {
+        return $this->environment === Environment::DEMO;
+    }
 }
