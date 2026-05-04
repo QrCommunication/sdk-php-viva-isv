@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SDK PHP ISV — Référence
-  version: 1.3.5
+  version: 1.6.0
   description: |
     SDK PHP pour l'API **Viva Wallet ISV Partner** — 10 ressources couvrant : comptes connectés, comptes ISV, ordres ISV avec commission, transactions (capture, récurrent, annulation), terminaux Cloud POS, transferts marketplace, ordres marketplace, Native Checkout ISV, webhooks ISV (CRUD) et parsing (21 événements).
 
