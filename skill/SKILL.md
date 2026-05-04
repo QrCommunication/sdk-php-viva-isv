@@ -350,3 +350,138 @@ src/
     ├── ApiException.php          (4xx/5xx)
     └── AuthenticationException.php (401)
 ```
+
+---
+
+## ⚠️ Production gotchas (testé sur prod ISV 2026-05)
+
+Ces comportements ont été observés sur un compte ISV Viva production réel
+et ne sont **pas** explicitement documentés par Viva. Lire avant intégration.
+
+### Endpoints qui ne marchent PAS
+
+| Endpoint | Status | Workaround |
+|----------|--------|------------|
+| `GET /isv/v1/accounts` (`isvAccounts->list()`) | 405 | Tracer accountIds app-side |
+| `DELETE /isv/v1/accounts/{id}` | 405 | Pas de cleanup possible |
+| `GET /isv/v1/webhooks` (`isvWebhooks->list()`) | 405 | Tracer EventTypeIds app-side |
+| `/platforms/v1/accounts/*` (Marketplace) | 403 | Utiliser `isvAccounts` à la place |
+| `POST /api/messages/config` (merchant webhooks) | 404 | Polling reconciliation |
+| `POST /api/sources` (composite auth) | 400 | Pas besoin (Viva utilise default) |
+
+### Endpoints de remplacement à utiliser
+
+```php
+// ❌ Ces appels ConnectedAccounts → 403 sur ISV pure
+$isv->accounts->onboardingUrl($accountId);
+$isv->accounts->isVerified($accountId);
+
+// ✅ Equivalents IsvAccounts qui marchent
+$isv->isvAccounts->getOnboardingUrl($accountId);   // since v1.6
+$isv->isvAccounts->isVerified($accountId);         // since v1.6
+$isv->isvAccounts->isAcquiringEnabled($accountId); // since v1.6
+```
+
+### OAuth Authorization Code — credentials séparées
+
+Les credentials ISV (`urn:viva:payments:core:api:isv` scope) supportent
+**uniquement** `client_credentials`. Pour le flow Authorization Code (login
+utilisateur final pour connecter un compte business existant), il faut des
+credentials **Smart Checkout** distinctes :
+
+- Créer dans portail Viva → Settings → API Access → Smart Checkout
+- Scopes : `acquiring`, `acquiring:transactions`, `redirectcheckout`
+- Whitelister manuellement le `redirect_uri` côté Viva (action support)
+
+Tenter `/connect/authorize` avec des credentials ISV redirige toujours vers
+`accounts.vivapayments.com/home/error?errorId=CfDJ8...` (errorId chiffré
+.NET DataProtection — non décodable).
+
+### Smart Checkout Sources
+
+`IsvOrders::create()` n'accepte volontairement **pas** de `sourceCode` :
+> "NO sourceCode (connected merchant uses default)"
+
+Viva attribue automatiquement une Source par défaut à chaque connected
+merchant. Les success/failure URLs se configurent uniquement côté merchant
+(portail Viva → Sources → Edit). **Ne JAMAIS tenter de créer une Source via
+API** côté ISV (`POST /api/sources` → 400 silencieux).
+
+### Webhooks merchant-level (`MerchantWebhookRegistrar`)
+
+Le helper retourne désormais 4 statuts (depuis v1.6) :
+- `created` — succès
+- `already_exists` — duplicate (idempotent)
+- `endpoint_unavailable` — HTTP 404 sur `/api/messages/config` (cas typique
+  prod ISV — endpoint déprécié/restreint)
+- `failed` — autre erreur (auth, réseau, 5xx)
+
+```php
+$results = $isv->merchantWebhookRegistrar()->registerAll(
+    connectedMerchantId: $merchantId,
+    callbackUrl: 'https://app.example.com/api/webhooks/viva',
+);
+
+if (MerchantWebhookRegistrar::hasEndpointIssue($results)) {
+    // L'API webhooks merchant-level n'est pas dispo sur ce compte ISV.
+    // Compenser par un job de reconciliation périodique.
+}
+```
+
+### Email d'invitation rattaché à un compte business existant
+
+Si l'email passé à `isvAccounts->create()` est **déjà associé à un compte
+business Viva**, l'écran d'invitation propose 2 options :
+
+1. **Sélectionner un compte existant** → déclenche OAuth Authorization Code
+   en interne. Plante avec "Failed to connect with PartnerName" si redirect
+   URI Smart Checkout n'est pas whitelisté côté Viva.
+2. **Create new business account** → KYB direct. Marche immédiatement.
+
+Pour forcer le KYB direct sans écran de sélection, utiliser un email
+**non lié** à Viva (alias `+tag` Gmail par exemple).
+
+### `accountId` peut être lié à un autre business email
+
+Cas observé en prod : invitation pour `userA@example.com` → écran de
+sélection → Continue → erreur OAuth → l'`accountId` côté Viva finit lié à
+`userB@otherdomain.com` (autre business du même tenant Viva), avec un
+`legalName` qui ne correspond pas. **Toujours vérifier `merchantId` et
+`legalName` après KYB avant de considérer l'onboarding réussi.**
+
+### Verification handshake
+
+Avant le premier `IsvWebhooks::create()`, appeler
+`IsvWebhooks::verificationToken()` pour récupérer la verification key. Cette
+clé doit être :
+
+1. Stockée app-side (utilisée pour signer les webhooks entrants HMAC-SHA256)
+2. Renvoyée par votre endpoint `GET /api/webhooks/viva` avec
+   `{"Key": "<verification-key>"}`. Sans cela, l'enregistrement ultérieur
+   peut être refusé par Viva.
+
+### Pings sans signature de Viva
+
+Viva fait des appels périodiques (au moins toutes les heures) sur l'URL
+webhook **sans `X-Viva-Signature`** depuis IPs Azure (`51.138.x.x`,
+`20.54.x.x`). Si vous renvoyez 4xx, Viva considère le webhook comme cassé.
+**Renvoyer 200 sur les calls sans signature** ou logger en warning sans
+bloquer.
+
+---
+
+## 📋 Configuration support à demander à Viva
+
+Au démarrage d'une intégration ISV, ouvrir un ticket Viva avec :
+
+| Item | À demander |
+|------|------------|
+| Activation rôle ISV | "Activate ISV Partner Program on merchant {ID}" |
+| Smart Checkout app | "Create Smart Checkout OAuth app for our platform" |
+| Whitelist redirect URI | "Add `https://app.example.com/callback` to redirect URIs of OAuth app `{client_id}`" |
+| `/api/messages/config` activation | "Enable merchant-level webhook registration on our ISV (events 768/769/2054)" — souvent refusé |
+| `/platforms/v1/*` activation | "Enable Marketplace API on our ISV" — souvent refusé |
+| Scope `biservices:merchantapi` | "Add merchantapi scope to our ISV credentials" — optionnel |
+
+Voir aussi `references/prod-findings.md` pour le détail complet des
+endpoints testés et leurs résultats.

@@ -7,10 +7,31 @@ namespace QrCommunication\VivaIsv\Resources;
 use QrCommunication\VivaIsv\HttpClient;
 
 /**
- * Connected Merchant Account management.
+ * Connected Merchant Account management — Marketplace API (`/platforms/v1/`).
  *
  * Uses POST /platforms/v1/accounts (ISV Bearer token) to create
  * and manage sub-merchant accounts under the ISV platform.
+ *
+ * ⚠️ **Production gotcha** — `/platforms/v1/*` is the *Marketplace API* and is
+ * **disabled by default on pure-ISV merchants**. All methods here may return
+ * HTTP 403 ("forbidden") on a fresh ISV account. To enable, ask Viva support
+ * to "activate Marketplace API" on your merchant. Without it, use
+ * {@see IsvAccounts} instead — which targets `/isv/v1/accounts` and works
+ * out-of-the-box for ISV partners.
+ *
+ * Practical mapping when Marketplace API is unavailable:
+ *
+ * | ConnectedAccounts (Marketplace, may 403) | IsvAccounts (ISV, always works) |
+ * |-------------------------------------------|---------------------------------|
+ * | `accounts->create()`                      | `isvAccounts->create()`         |
+ * | `accounts->get($id)`                      | `isvAccounts->get($id)`         |
+ * | `accounts->onboardingUrl($id)`            | `isvAccounts->getOnboardingUrl($id)` |
+ * | `accounts->isVerified($id)`               | `isvAccounts->isVerified($id)`  |
+ * | `accounts->list()`                        | _Not exposed by Viva — track app-side_ |
+ * | `accounts->delete($id)`                   | _Not exposed by Viva (HTTP 405)_ |
+ *
+ * @see IsvAccounts
+ * @see prod-findings.md
  */
 final class ConnectedAccounts
 {
