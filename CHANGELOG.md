@@ -6,6 +6,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.0] - 2026-06-06
+
+### Added
+
+#### Cloud Terminal (ISV) — `Resources\EcrTerminals`
+
+- **`refund(string $sessionId, int $amount, ?string $merchantReference = null, int $terminalId = 0, string $terminalMerchantId = '', string $cashRegisterId = 'SDK-CR1', int $currencyCode = 978, ?string $refundSessionId = null): array`**
+  — `POST /ecr/isv/v1/transactions:refund`. Referenced refund tied to the
+  original sale's `parentSessionId` (Bearer, camelCase, `isvDetails.terminalMerchantId`).
+- **`createAction(array $payload): array`** — `POST /ecr/isv/v1/actions`
+  (e.g. `aade-fim-control`).
+- **`getAction(string $actionId): array`** — `GET /ecr/isv/v1/actions/{id}`
+  (HTTP 202 while processing → `[]`).
+
+#### ISV Payment reads/writes
+
+- **`Resources\IsvOrders::retrieve(int $orderCode, string $connectedMerchantId): array`**
+  — `GET /api/orders/{orderCode}` (Composite Basic Auth).
+- **`Resources\IsvOrders::cancel(int $orderCode, string $connectedMerchantId): array`**
+  — `DELETE /api/orders/{orderCode}` (Composite Basic Auth).
+- **`Resources\IsvTransactions::listByClearanceDate()`**,
+  **`listByOrderCode()`**, **`listBySourceCode()`** — query variants on
+  `GET /api/transactions` (`clearancedate` / `ordercode` / `sourcecode`+`date`),
+  Composite Basic Auth.
+- **`Resources\IsvTransactions::moto(string $connectedMerchantId, array $payload): array`**
+  — `POST /api/transactions` MOTO charge (Composite Basic Auth, forces `moto: true`).
+- **`Resources\IsvTransactions::increasePreauth(...)`** —
+  `POST /acquiring/v1/isv/transactions/{id}:increasepreauth?merchantId={uuid}`
+  incremental pre-auth (Bearer New API, camelCase).
+
+#### Sources (ISV) — `Resources\IsvSources` (new)
+
+- **`create(array $payload): array`** — `POST /api/sources` (Legacy ISV Basic Auth).
+  Wired as `$isv->sources`.
+
+#### Resellers — `Resources\Resellers` (new)
+
+- **`validateCashPayment()`**, **`validateBillPayment()`**,
+  **`sendCashPaymentOtp()`**, **`sendBillPaymentOtp()`**, **`cashPayment()`**,
+  **`billPayment()`**, **`createOrder()`** — `/resellers/v1/...` cash & bill
+  payment flow + reseller orders (Bearer New API). Wired as `$isv->resellers`.
+
+#### HttpClient
+
+- **`patch()`** (Bearer New API) and **`legacyPatch()`** (Legacy ISV Basic Auth)
+  added to mirror `put`/`legacyPost`.
+
+### Changed
+
+- **`Resources\ConnectedAccounts::update()`** now uses `PATCH`
+  `/platforms/v1/accounts/{accountId}` (was `POST`), matching Viva's documented
+  Marketplace API verb for updating payout/account attributes.
+
+### Notes
+
+- **Platform domain** (`/platforms/v1/accounts` create/get/update/delete and
+  `/platforms/v1/transfers` send/reverse) was **already covered** by
+  `ConnectedAccounts` and `Transfers` — no `Platforms` resource was added to
+  avoid duplication. Only the update verb (POST → PATCH) was corrected.
+
+---
+
 ## [1.6.0] - 2026-05-04
 
 ### Added

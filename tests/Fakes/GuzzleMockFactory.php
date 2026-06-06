@@ -56,6 +56,20 @@ final class GuzzleMockFactory
     }
 
     /**
+     * Build the OAuth2 token response that the HttpClient fetches before any
+     * Bearer (New API) request. Append this BEFORE the actual endpoint response
+     * when testing a Bearer-authenticated resource method.
+     */
+    public static function tokenResponse(string $accessToken = 'test-access-token', int $expiresIn = 3600): Response
+    {
+        return self::jsonResponse(200, [
+            'access_token' => $accessToken,
+            'token_type' => 'Bearer',
+            'expires_in' => $expiresIn,
+        ]);
+    }
+
+    /**
      * Build an error JSON response matching Viva's error format.
      */
     public static function errorResponse(int $status, string $errorText, int $errorCode = 0): Response

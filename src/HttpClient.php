@@ -65,6 +65,14 @@ final class HttpClient
     }
 
     /** @return array<string, mixed> */
+    public function patch(string $path, array $body = []): array
+    {
+        return $this->requestBearer('PATCH', $this->config->apiUrl().$path, [
+            RequestOptions::JSON => $body,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
     public function delete(string $path, array $body = []): array
     {
         return $this->requestBearer('DELETE', $this->config->apiUrl().$path, [
@@ -86,6 +94,14 @@ final class HttpClient
     public function legacyPost(string $path, array $body = []): array
     {
         return $this->requestBasic('POST', $this->config->legacyUrl().$path, [
+            RequestOptions::JSON => $body,
+        ], $this->config->merchantId, $this->config->apiKey);
+    }
+
+    /** @return array<string, mixed> */
+    public function legacyPatch(string $path, array $body = []): array
+    {
+        return $this->requestBasic('PATCH', $this->config->legacyUrl().$path, [
             RequestOptions::JSON => $body,
         ], $this->config->merchantId, $this->config->apiKey);
     }

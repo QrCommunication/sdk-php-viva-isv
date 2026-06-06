@@ -59,6 +59,128 @@ final class IsvTransactions
     }
 
     /**
+     * List transactions for a connected merchant by clearance date.
+     *
+     * GET /api/transactions/?clearancedate={date} (Composite Basic Auth).
+     *
+     * @param  string  $clearanceDate  Y-m-d format
+     * @return array<int, array<string, mixed>>
+     */
+    public function listByClearanceDate(string $connectedMerchantId, string $clearanceDate): array
+    {
+        $result = $this->http->compositeGet(
+            '/api/transactions',
+            $connectedMerchantId,
+            ['clearancedate' => $clearanceDate],
+        );
+
+        return $result['Transactions'] ?? [];
+    }
+
+    /**
+     * List transactions for a connected merchant by order code.
+     *
+     * GET /api/transactions/?ordercode={orderCode} (Composite Basic Auth).
+     *
+     * @param  int  $orderCode  The order code to filter on
+     * @return array<int, array<string, mixed>>
+     */
+    public function listByOrderCode(string $connectedMerchantId, int $orderCode): array
+    {
+        $result = $this->http->compositeGet(
+            '/api/transactions',
+            $connectedMerchantId,
+            ['ordercode' => $orderCode],
+        );
+
+        return $result['Transactions'] ?? [];
+    }
+
+    /**
+     * List transactions for a connected merchant by source code (and date).
+     *
+     * GET /api/transactions/?sourcecode={sourceCode}&date={date} (Composite Basic Auth).
+     *
+     * @param  string  $sourceCode  Payment source code to filter on
+     * @param  string  $date  Y-m-d format
+     * @return array<int, array<string, mixed>>
+     */
+    public function listBySourceCode(string $connectedMerchantId, string $sourceCode, string $date): array
+    {
+        $result = $this->http->compositeGet(
+            '/api/transactions',
+            $connectedMerchantId,
+            ['sourcecode' => $sourceCode, 'date' => $date],
+        );
+
+        return $result['Transactions'] ?? [];
+    }
+
+    /**
+     * Make a MOTO (Mail Order / Telephone Order) card charge for a connected merchant.
+     *
+     * POST /api/transactions on the Legacy API with Composite Basic Auth.
+     * The payload is passed through as-is (camelCase, per Viva MOTO spec) and
+     * must include `moto: true`, `creditcard` and `orderCode`. The `moto` flag
+     * is forced to true if absent.
+     *
+     * @param  array<string, mixed>  $payload  MOTO charge body
+     * @return array<string, mixed>  Transaction result (TransactionId, StatusId, etc.)
+     */
+    public function moto(string $connectedMerchantId, array $payload): array
+    {
+        $payload['moto'] ??= true;
+
+        return $this->http->compositePost(
+            '/api/transactions',
+            $payload,
+            $connectedMerchantId,
+        );
+    }
+
+    /**
+     * Increase the amount of an existing ISV pre-authorized transaction.
+     *
+     * POST /acquiring/v1/isv/transactions/{id}:increasepreauth on the New API
+     * (Bearer ISV token, camelCase body). The merchant is identified via the
+     * `merchantId` query param.
+     *
+     * @param  string  $transactionId  The initial pre-auth transaction UUID
+     * @param  string  $connectedMerchantId  UUID of the merchant the transaction belongs to
+     * @param  int  $amount  Amount to add to the original authorization, in cents
+     * @param  string|null  $customerDescription  Description shown to the customer
+     * @param  string|null  $merchantReference  Internal reference
+     * @param  string|null  $sourceCode  Payment source code
+     * @param  int|null  $currencyCode  ISO 4217 numeric (978 = EUR)
+     * @param  string|null  $idempotencyKey  Idempotency key for safe retries
+     * @return array{transactionId?: string}
+     */
+    public function increasePreauth(
+        string $transactionId,
+        string $connectedMerchantId,
+        int $amount,
+        ?string $customerDescription = null,
+        ?string $merchantReference = null,
+        ?string $sourceCode = null,
+        ?int $currencyCode = null,
+        ?string $idempotencyKey = null,
+    ): array {
+        $payload = array_filter([
+            'amount' => $amount,
+            'customerTrns' => $customerDescription,
+            'merchantTrns' => $merchantReference,
+            'sourceCode' => $sourceCode,
+            'currencyCode' => $currencyCode !== null ? (string) $currencyCode : null,
+            'idempotencyKey' => $idempotencyKey,
+        ], fn ($v) => $v !== null);
+
+        return $this->http->post(
+            "/acquiring/v1/isv/transactions/{$transactionId}:increasepreauth?merchantId={$connectedMerchantId}",
+            $payload,
+        );
+    }
+
+    /**
      * Capture a pre-authorized transaction.
      *
      * @param  string  $transactionId  The preauth transaction UUID

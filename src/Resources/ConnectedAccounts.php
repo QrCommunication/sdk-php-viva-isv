@@ -113,15 +113,17 @@ final class ConnectedAccounts
     }
 
     /**
-     * Update connected account attributes.
+     * Update connected account attributes (e.g. payout settings).
+     *
+     * Viva exposes this as PATCH /platforms/v1/accounts/{accountId}.
      *
      * @param  string  $accountId  Connected account UUID
-     * @param  array<string, mixed>  $attributes  Fields to update
+     * @param  array<string, mixed>  $attributes  Fields to update (e.g. `payouts`)
      * @return array<string, mixed>
      */
     public function update(string $accountId, array $attributes): array
     {
-        return $this->http->post("/platforms/v1/accounts/{$accountId}", $attributes);
+        return $this->http->patch("/platforms/v1/accounts/{$accountId}", $attributes);
     }
 
     /**

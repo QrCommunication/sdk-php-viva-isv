@@ -76,6 +76,40 @@ final class IsvOrders
     }
 
     /**
+     * Retrieve a payment order for a connected merchant.
+     *
+     * GET /api/orders/{orderCode} on the Legacy API. Uses Composite Basic Auth
+     * to read the order in the connected merchant's context.
+     *
+     * @param  int  $orderCode  The order code to retrieve
+     * @param  string  $connectedMerchantId  UUID of the connected merchant
+     * @return array<string, mixed>  Order data (OrderCode, StateId, RequestAmount, etc.)
+     */
+    public function retrieve(int $orderCode, string $connectedMerchantId): array
+    {
+        return $this->http->compositeGet(
+            "/api/orders/{$orderCode}",
+            $connectedMerchantId,
+        );
+    }
+
+    /**
+     * Cancel an open payment order for a connected merchant.
+     *
+     * DELETE /api/orders/{orderCode} on the Legacy API with Composite Basic Auth.
+     *
+     * @param  int  $orderCode  The order code to cancel
+     * @param  string  $connectedMerchantId  UUID of the connected merchant
+     * @return array<string, mixed>  Cancellation result (Success, ErrorCode, etc.)
+     */
+    public function cancel(int $orderCode, string $connectedMerchantId): array
+    {
+        $url = $this->config->legacyUrl()."/api/orders/{$orderCode}";
+
+        return $this->http->compositeDeleteUrl($url, $connectedMerchantId);
+    }
+
+    /**
      * Get the Smart Checkout URL for an order code.
      */
     public function checkoutUrl(int $orderCode): string

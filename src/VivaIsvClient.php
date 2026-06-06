@@ -11,10 +11,12 @@ use QrCommunication\VivaIsv\Resources\EcrTerminals;
 use QrCommunication\VivaIsv\Resources\IsvAccounts;
 use QrCommunication\VivaIsv\Resources\IsvMessages;
 use QrCommunication\VivaIsv\Resources\IsvOrders;
+use QrCommunication\VivaIsv\Resources\IsvSources;
 use QrCommunication\VivaIsv\Resources\IsvTransactions;
 use QrCommunication\VivaIsv\Resources\IsvWebhooks;
 use QrCommunication\VivaIsv\Resources\MarketplaceOrders;
 use QrCommunication\VivaIsv\Resources\NativeCheckoutIsv;
+use QrCommunication\VivaIsv\Resources\Resellers;
 use QrCommunication\VivaIsv\Resources\Transfers;
 use QrCommunication\VivaIsv\Resources\Webhooks;
 
@@ -84,6 +86,10 @@ final class VivaIsvClient
 
     public readonly IsvMessages $messages;
 
+    public readonly IsvSources $sources;
+
+    public readonly Resellers $resellers;
+
     private readonly IsvConfig $config;
 
     private readonly HttpClient $http;
@@ -122,6 +128,8 @@ final class VivaIsvClient
         $this->isvWebhooks = new IsvWebhooks($this->http);
         $this->webhooks = new Webhooks;
         $this->messages = new IsvMessages($this->http, $this->config);
+        $this->sources = new IsvSources($this->http);
+        $this->resellers = new Resellers($this->http);
     }
 
     public function getConfig(): IsvConfig

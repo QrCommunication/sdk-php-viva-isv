@@ -84,6 +84,83 @@ final class EcrTerminals
     }
 
     /**
+     * Refund (cancel) a previous ISV sale on a POS terminal.
+     *
+     * POST /ecr/isv/v1/transactions:refund — referenced refund tied to the
+     * original sale's `parentSessionId`. A fresh `sessionId` is generated for
+     * the refund operation itself (auto-generated when null).
+     *
+     * @param  string  $sessionId  The parent (original sale) session UUID to refund
+     * @param  int  $amount  Amount to refund in cents
+     * @param  string|null  $merchantReference  Internal reference (defaults to refund session id)
+     * @param  int  $terminalId  Terminal TID (e.g. 16014231)
+     * @param  string  $terminalMerchantId  Merchant UUID that owns the terminal
+     * @param  string  $cashRegisterId  ECR identifier
+     * @param  int  $currencyCode  ISO 4217 numeric (978 = EUR)
+     * @param  string|null  $refundSessionId  UUID for the refund itself (auto-generated if null)
+     * @return array{session_id: string, success: bool}
+     */
+    public function refund(
+        string $sessionId,
+        int $amount,
+        ?string $merchantReference = null,
+        int $terminalId = 0,
+        string $terminalMerchantId = '',
+        string $cashRegisterId = 'SDK-CR1',
+        int $currencyCode = 978,
+        ?string $refundSessionId = null,
+    ): array {
+        $refundSessionId ??= $this->generateUuid();
+
+        $payload = array_filter([
+            'sessionId' => $refundSessionId,
+            'parentSessionId' => $sessionId,
+            'terminalId' => $terminalId,
+            'cashRegisterId' => $cashRegisterId,
+            'amount' => $amount,
+            'currencyCode' => (string) $currencyCode,
+            'merchantReference' => $merchantReference ?? 'SDK-refund-'.$refundSessionId,
+        ], fn ($v) => $v !== '' && $v !== 0);
+
+        $payload['isvDetails'] = ['terminalMerchantId' => $terminalMerchantId];
+
+        $this->http->post('/ecr/isv/v1/transactions:refund', $payload);
+
+        return [
+            'session_id' => $refundSessionId,
+            'success' => true,
+        ];
+    }
+
+    /**
+     * Create an action request to be invoked on a POS device.
+     *
+     * POST /ecr/isv/v1/actions — e.g. an `aade-fim-control` action. The payload
+     * is passed through as-is (camelCase, New API convention) and must include
+     * `terminalId`, `cashRegisterId`, `isvDetails.terminalMerchantId` and `request`.
+     *
+     * @param  array<string, mixed>  $payload  Action request body
+     * @return array{terminalId?: string, cashRegisterId?: string, actionType?: string, actionId?: string}
+     */
+    public function createAction(array $payload): array
+    {
+        return $this->http->post('/ecr/isv/v1/actions', $payload);
+    }
+
+    /**
+     * Fetch the result of a previously created action.
+     *
+     * GET /ecr/isv/v1/actions/{actionId}. Returns HTTP 202 (empty body → []) while
+     * the action is still processing, or the action result once completed.
+     *
+     * @return array<string, mixed>  Action data with successfullyProcessed, response, etc.
+     */
+    public function getAction(string $actionId): array
+    {
+        return $this->http->get("/ecr/isv/v1/actions/{$actionId}");
+    }
+
+    /**
      * Poll a session to check the result.
      *
      * @return array<string, mixed>  Session data with success, eventId, transactionId, etc.
