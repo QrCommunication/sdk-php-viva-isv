@@ -1,6 +1,6 @@
 # SDK PHP Viva Wallet ISV
 
-[![Version 1.7.0](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/qrcommunication/sdk-php-viva-isv/releases)
+[![Version 1.7.1](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/qrcommunication/sdk-php-viva-isv/releases)
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777BB4.svg)](https://php.net)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Packagist](https://img.shields.io/badge/Packagist-qrcommunication%2Fviva--isv--sdk-orange.svg)](https://packagist.org/packages/qrcommunication/viva-isv-sdk)

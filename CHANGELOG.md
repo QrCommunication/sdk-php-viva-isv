@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.1] - 2026-06-06
+
+### Added — `Resources\IsvSources` (full source management, own + connected merchant)
+
+- **`createForMerchant(string $connectedMerchantId, array $payload): array`**
+  — `POST /api/sources` via **Composite Basic Auth** : crée une source (avec
+  `pathSuccess`/`pathFail`/`domain`/`isSecure`…) **au nom d'un marchand connecté**.
+- **`list(): array`** / **`listForMerchant(string $connectedMerchantId): array`**
+  — `GET /api/sources` (ISV propre / Composite). Réponse aplatie (gère les
+  enveloppes `Sources`/`sources`/`data`).
+- **`find(string $sourceCode): ?array`** /
+  **`findForMerchant(string $connectedMerchantId, string $sourceCode): ?array`**
+  — récupère une source par `sourceCode` (ou `null`).
+- **`ensure(array $payload): array`** /
+  **`ensureForMerchant(string $connectedMerchantId, array $payload): array`**
+  — **idempotent** : liste d'abord, renvoie la source existante si trouvée,
+  sinon la crée (évite les doublons).
+
+`create(array $payload)` (compte ISV propre) reste inchangé. Body camelCase
+(`name`, `sourceCode`, `pathSuccess`, `pathFail`, `domain`, `isSecure`…) conforme
+au spec Viva.
+
 ## [1.7.0] - 2026-06-06
 
 ### Added
