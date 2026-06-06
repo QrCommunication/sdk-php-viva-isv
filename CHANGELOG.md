@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.2] - 2026-06-06
+
+### Changed — `Resources\IsvSources` : dédup basée sur la doc Viva (409), pas sur un GET inexistant
+
+La v1.7.1 exposait `list()/listForMerchant()/find()/findForMerchant()` et un
+`ensure()` basé sur `GET /api/sources`. **Cet endpoint GET n'existe pas dans la
+doc Viva** (les specs officiels n'exposent que `POST /api/sources`). Ces méthodes
+sont **retirées**.
+
+### Added/Fixed
+
+- **`ensure(array $payload)`** / **`ensureForMerchant(string $connectedMerchantId, array $payload)`**
+  réimplémentées sur le mécanisme **documenté** : `POST /api/sources` renvoie
+  `409 — Source already exists with this source code`. `ensure*` tente la création
+  et, sur 409, retourne `['sourceCode' => …, 'status' => 'already_exists']` au lieu
+  de lever — idempotent, sans dépendre d'un listing.
+- `create()` / `createForMerchant()` inchangées (POST documenté).
+
+### Removed
+
+- `IsvSources::list()`, `listForMerchant()`, `find()`, `findForMerchant()`
+  (reposaient sur `GET /api/sources`, non documenté par Viva). Pour récupérer
+  les sources existantes : Self Care / banking app Viva.
+
 ## [1.7.1] - 2026-06-06
 
 ### Added — `Resources\IsvSources` (full source management, own + connected merchant)

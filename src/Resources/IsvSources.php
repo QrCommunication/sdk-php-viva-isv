@@ -4,20 +4,25 @@ declare(strict_types=1);
 
 namespace QrCommunication\VivaIsv\Resources;
 
+use QrCommunication\VivaIsv\Exceptions\ApiException;
 use QrCommunication\VivaIsv\HttpClient;
 
 /**
- * ISV Payment Sources — create / list / dedup payment sources.
+ * ISV Payment Sources — create payment sources, with idempotent helpers.
+ *
+ * Viva documents ONLY `POST /api/sources` (create). There is NO documented
+ * endpoint to list/retrieve sources via the API — they are otherwise managed
+ * through the Self Care / banking web app. Idempotency therefore relies on the
+ * documented `409 Conflict — Source already exists with this source code`
+ * response, NOT on a list-then-create lookup.
  *
  * Two scopes:
- *  - Own ISV account     → Legacy Basic Auth   (create/list/find/ensure)
- *  - Connected merchant  → Composite Basic Auth (*ForMerchant variants)
+ *  - Own ISV account     → Legacy Basic Auth      (create / ensure)
+ *  - Connected merchant  → Composite Basic Auth   (*ForMerchant variants)
  *
- * Sources define how a merchant's sales are grouped and, for e-commerce, the
- * redirect URLs used by Smart Checkout. The `/api/sources` body is camelCase
- * (per Viva spec): required `name` + `sourceCode`; e-commerce also requires
- * `domain` / `isSecure` / `pathSuccess` / `pathFail`; card-present requires
- * `phone` / `address` / `walletId` / `isPhysical` / `latitude` / `longitude`.
+ * Body is camelCase (per Viva spec): required `name` + `sourceCode`; e-commerce
+ * also requires `domain` / `isSecure` / `pathSuccess` / `pathFail`; card-present
+ * requires `phone` / `address` / `walletId` / `isPhysical` / `latitude` / `longitude`.
  *
  * @see https://developer.viva.com/apis-for-payments/payment-api/#tag/Sources
  */
@@ -31,6 +36,9 @@ final class IsvSources
 
     /**
      * Create a source on the ISV's own account (Legacy Basic Auth).
+     *
+     * Throws ApiException with httpStatus 409 if a source with the same
+     * `sourceCode` already exists (use ensure() to treat that as success).
      *
      * @param  array<string, mixed>  $payload  Source attributes (camelCase). Required: name, sourceCode.
      * @return array<string, mixed>  Created source data
@@ -52,130 +60,62 @@ final class IsvSources
         return $this->http->compositePost('/api/sources', $payload, $connectedMerchantId);
     }
 
-    // ==================== LIST ====================
-
-    /**
-     * List the ISV's own payment sources.
-     *
-     * @return array<int, array<string, mixed>>  Flat list of sources
-     */
-    public function list(): array
-    {
-        return $this->normalize($this->http->legacyGet('/api/sources'));
-    }
-
-    /**
-     * List a connected merchant's payment sources (Composite Basic Auth).
-     *
-     * @param  string  $connectedMerchantId  The connected merchant UUID
-     * @return array<int, array<string, mixed>>  Flat list of sources
-     */
-    public function listForMerchant(string $connectedMerchantId): array
-    {
-        return $this->normalize($this->http->compositeGet('/api/sources', $connectedMerchantId));
-    }
-
-    // ==================== FIND (dedup) ====================
-
-    /**
-     * Find one of the ISV's own sources by its sourceCode.
-     *
-     * @return array<string, mixed>|null  The matching source, or null if none
-     */
-    public function find(string $sourceCode): ?array
-    {
-        return $this->pick($this->list(), $sourceCode);
-    }
-
-    /**
-     * Find a connected merchant's source by its sourceCode (Composite Basic Auth).
-     *
-     * @return array<string, mixed>|null  The matching source, or null if none
-     */
-    public function findForMerchant(string $connectedMerchantId, string $sourceCode): ?array
-    {
-        return $this->pick($this->listForMerchant($connectedMerchantId), $sourceCode);
-    }
-
     // ==================== ENSURE (idempotent create-if-absent) ====================
 
     /**
-     * Return the ISV source matching $payload['sourceCode'], creating it only if absent.
+     * Create the source unless it already exists (ISV own account).
      *
-     * Avoids duplicate sources: lists first, returns the existing one when found,
-     * otherwise creates it.
+     * Uses Viva's documented `409 Source already exists` response: attempts the
+     * create and, on 409, returns a soft marker instead of throwing — so calling
+     * this repeatedly never produces a duplicate nor an error.
      *
      * @param  array<string, mixed>  $payload  Source attributes (camelCase). Required: name, sourceCode.
-     * @return array<string, mixed>  The existing or newly created source
+     * @return array<string, mixed>  Created source data, or
+     *                               ['sourceCode' => string, 'status' => 'already_exists'] on 409
      */
     public function ensure(array $payload): array
     {
-        $sourceCode = (string) ($payload['sourceCode'] ?? '');
-        $existing = $sourceCode !== '' ? $this->find($sourceCode) : null;
-
-        return $existing ?? $this->create($payload);
+        try {
+            return $this->create($payload);
+        } catch (ApiException $e) {
+            return $this->handleConflict($e, $payload);
+        }
     }
 
     /**
-     * Return a connected merchant's source matching $payload['sourceCode'],
-     * creating it only if absent (Composite Basic Auth).
+     * Create the connected merchant's source unless it already exists (Composite Auth).
      *
      * @param  string  $connectedMerchantId  The connected merchant UUID
      * @param  array<string, mixed>  $payload  Source attributes (camelCase). Required: name, sourceCode.
-     * @return array<string, mixed>  The existing or newly created source
+     * @return array<string, mixed>  Created source data, or
+     *                               ['sourceCode' => string, 'status' => 'already_exists'] on 409
      */
     public function ensureForMerchant(string $connectedMerchantId, array $payload): array
     {
-        $sourceCode = (string) ($payload['sourceCode'] ?? '');
-        $existing = $sourceCode !== ''
-            ? $this->findForMerchant($connectedMerchantId, $sourceCode)
-            : null;
-
-        return $existing ?? $this->createForMerchant($connectedMerchantId, $payload);
+        try {
+            return $this->createForMerchant($connectedMerchantId, $payload);
+        } catch (ApiException $e) {
+            return $this->handleConflict($e, $payload);
+        }
     }
 
     // ==================== INTERNALS ====================
 
     /**
-     * Normalize a /api/sources list response to a flat array of sources.
+     * Swallow the documented 409 (source already exists), rethrow anything else.
      *
-     * Viva may wrap the list under `Sources`/`sources`, return a bare list, or a
-     * single object — this flattens all shapes.
-     *
-     * @param  array<string, mixed>  $response
-     * @return array<int, array<string, mixed>>
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
      */
-    private function normalize(array $response): array
+    private function handleConflict(ApiException $e, array $payload): array
     {
-        foreach (['Sources', 'sources', 'data', 'Data'] as $key) {
-            if (isset($response[$key]) && is_array($response[$key])) {
-                return array_values($response[$key]);
-            }
+        if ($e->httpStatus === 409) {
+            return [
+                'sourceCode' => $payload['sourceCode'] ?? null,
+                'status' => 'already_exists',
+            ];
         }
 
-        if ($response === []) {
-            return [];
-        }
-
-        return array_is_list($response) ? $response : [$response];
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $sources
-     * @return array<string, mixed>|null
-     */
-    private function pick(array $sources, string $sourceCode): ?array
-    {
-        foreach ($sources as $source) {
-            if (! is_array($source)) {
-                continue;
-            }
-            $code = (string) ($source['SourceCode'] ?? $source['sourceCode'] ?? '');
-            if ($code === $sourceCode) {
-                return $source;
-            }
-        }
-
-        return null;
+        throw $e;
     }
 }

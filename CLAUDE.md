@@ -22,7 +22,7 @@ VivaIsvClient (point d'entree)
 +-- isvWebhooks               -> IsvWebhooks             (New API, Bearer — /isv/v1/)
 +-- webhooks                  -> Webhooks                (pas d'auth)
 +-- messages                  -> IsvMessages             (Legacy API, Composite Basic Auth — /api/messages/config)
-+-- sources                   -> IsvSources             (Legacy/Composite Basic Auth — /api/sources : create[ForMerchant], list[ForMerchant], find[ForMerchant], ensure[ForMerchant])
++-- sources                   -> IsvSources             (Legacy/Composite Basic Auth — POST /api/sources : create[ForMerchant], ensure[ForMerchant] via 409 ; pas de GET /api/sources cote Viva)
 +-- resellers                 -> Resellers              (New API, Bearer — /resellers/v1/)
 +-- merchantWebhookRegistrar() -> MerchantWebhookRegistrar (Helpers, lazy — wrapper idempotent de IsvMessages)
 ```
@@ -36,7 +36,7 @@ VivaIsvClient (point d'entree)
 | Transaction filters | `transactions` (`listByClearanceDate`, `listByOrderCode`, `listBySourceCode`) | `/api/transactions?...` | Composite |
 | MOTO charge | `transactions->moto()` | `POST /api/transactions` | Composite |
 | Incremental preauth | `transactions->increasePreauth()` | `/acquiring/v1/isv/transactions/{id}:increasepreauth` | Bearer |
-| Sources (own + connected merchant, idempotent) | `sources->{create,createForMerchant,list,listForMerchant,find,findForMerchant,ensure,ensureForMerchant}()` | `POST/GET /api/sources` | Legacy Basic / Composite |
+| Sources (own + connected merchant, idempotent via 409) | `sources->{create,createForMerchant,ensure,ensureForMerchant}()` | `POST /api/sources` (pas de GET cote Viva) | Legacy Basic / Composite |
 | Resellers cash/bill | `resellers->*` | `/resellers/v1/...` | Bearer |
 | Connected accounts | `accounts->{create,get,update,delete}` | `/platforms/v1/accounts` (update = **PATCH**) | Bearer |
 | Transfers | `transfers->{send,reverse}` | `/platforms/v1/transfers` | Bearer |
