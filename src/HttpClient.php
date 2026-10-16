@@ -178,7 +178,13 @@ final class HttpClient
     /** @return array<string, mixed> */
     private function requestBasic(string $method, string $url, array $options, string $username, string $password): array
     {
-        $options[RequestOptions::AUTH] = [$username, $password];
+        // The Authorization header is built by hand instead of using Guzzle's `auth`
+        // option: the composite username is "ResellerID:ConnectedMerchantID" (colon
+        // required by Viva) and Guzzle 8 rejects colons in Basic usernames.
+        $options[RequestOptions::HEADERS] = array_merge(
+            $options[RequestOptions::HEADERS] ?? [],
+            ['Authorization' => 'Basic '.base64_encode($username.':'.$password)],
+        );
 
         return $this->doRequest($method, $url, $options);
     }

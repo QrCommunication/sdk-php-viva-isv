@@ -49,8 +49,12 @@ final class IsvOrdersTest extends TestCase
         $this->assertInstanceOf(Request::class, $lastRequest);
         $this->assertSame('GET', $lastRequest->getMethod());
         $this->assertStringContainsString('/api/orders/3958121726095215', (string) $lastRequest->getUri());
-        // Composite Basic Auth header present
-        $this->assertNotEmpty($lastRequest->getHeaderLine('Authorization'));
+        // Composite Basic Auth: "{ResellerID}:{ConnectedMerchantID}" is the username, so the
+        // colon must survive into the encoded credentials (Guzzle 8 rejects it in `auth`).
+        $this->assertSame(
+            'Basic '.base64_encode('reseller-uuid:merchant-abc:reseller-api-key'),
+            $lastRequest->getHeaderLine('Authorization'),
+        );
     }
 
     #[Test]

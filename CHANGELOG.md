@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+- Dependencies: `guzzlehttp/guzzle` constraint widened to `^7.8 || ^8.0` (tested on 8.2),
+  `phpunit/phpunit` to `^11.0 || ^12.0 || ^13.0` (tested on 13.4; Composer keeps PHPUnit 11
+  on PHP 8.2). The `php` requirement is unchanged.
+
+### Fixed
+- `HttpClient::requestBasic()` now builds the `Authorization: Basic …` header itself instead of
+  using Guzzle's `auth` option. Composite auth uses `{ResellerID}:{ConnectedMerchantID}` as the
+  username (colon included), which Guzzle 8 rejects with
+  "Basic authentication username must not contain a colon". Behaviour on Guzzle 7 is unchanged.
+
+
 ## [1.7.2] - 2026-06-06
 
 ### Changed — `Resources\IsvSources` : dédup basée sur la doc Viva (409), pas sur un GET inexistant
